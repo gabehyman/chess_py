@@ -12,7 +12,7 @@ stockfish_path = "/opt/homebrew/Cellar/stockfish/17/bin/stockfish"
 
 class Game:
 
-    def __init__(self, game: list, username: str, engine_limit: list, local: bool = False):
+    def __init__(self, game: list, username: str, engine_limit: list = None, local: bool = True):
         if local:  # read locally stored game json
             self.color: str = game['color']
             self.opponent: str = game['opponent']
@@ -32,7 +32,7 @@ class Game:
             return
 
         # json pulled from chess.com archive
-        self.color: str = 'white' if game['white']['username'] == username else 'black'
+        self.color: str = 'white' if game['white']['username'].lower() == username else 'black'
         self.opponent: str = game['white']['username'] if self.color != 'white' else game['black']['username']
         self.result: bool = game[self.color]['result']
         self.final_elo: int = game[self.color]['rating']
@@ -55,11 +55,11 @@ class Game:
 
         year, month, day = pgn_dirty[Game.find_line_number(game['pgn'], 'UTCDate')].split('\"')[1].split('.')
         hour, minute, sec = pgn_dirty[Game.find_line_number(game['pgn'], 'UTCTime')].split('\"')[1].split(':')
-        self.start_time: datetime = datetime(int(year), int(month), int(day), int(hour), int(minute), int(sec))
+        self.start_time: datetime = Game.make_datetime_obj(int(year), int(month), int(day), int(hour), int(minute), int(sec))
 
         year, month, day = pgn_dirty[Game.find_line_number(game['pgn'], 'EndDate')].split('\"')[1].split('.')
         hour, minute, sec = pgn_dirty[Game.find_line_number(game['pgn'], 'EndTime')].split('\"')[1].split(':')
-        self.end_time: datetime = datetime(int(year), int(month), int(day), int(hour), int(minute), int(sec))
+        self.end_time: datetime = Game.make_datetime_obj(int(year), int(month), int(day), int(hour), int(minute), int(sec))
         self.month_index: int = Game.date_to_month_index(self.start_time)
 
         self.duration: float = (self.end_time - self.start_time).total_seconds()
@@ -154,6 +154,11 @@ class Game:
         webbrowser.open('file://' + svg_file)
 
     @staticmethod
+    def make_datetime_obj(year: int, month: int, day: int = 1,
+                          hour: int = 22, minute: int = 22, second: int = 22) -> datetime:
+        return datetime(year, month, day, hour, minute, second)
+
+    @staticmethod
     def date_to_month_index(date: datetime) -> int:
         return ((date.month - chess_com_launch_date.month)
                 + (date.year - chess_com_launch_date.year) * 12)
@@ -199,16 +204,5 @@ class Game:
     def clock_to_seconds(clock_time: str) -> float:
         hours, minutes, seconds = clock_time.split(':')
         return float(int(hours) * 3600 + int(minutes) * 60 + float(seconds))
-
-    # compare the date of two archives
-    @staticmethod
-    def compare_archive_dates(base: str, comp: str) -> int:
-        base_split = base.split('/')
-        base_dt_obj: datetime = datetime(int(base_split[-2]), int(base_split[-1]), 1)
-
-        comp_split = comp.split('/')
-        comp_dt_obj: datetime = datetime(int(comp_split[-2]), int(comp_split[-1]), 1)
-
-        return (base_dt_obj - comp_dt_obj).days
 
 

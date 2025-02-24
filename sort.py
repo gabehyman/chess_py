@@ -1,9 +1,11 @@
 import requests
+import re
 import os
 import json
 import time
 
 from game import Game
+from parallelize import Parallelize
 
 valid_time_classes = ['rapid', 'bullet', 'blitz']
 
@@ -11,46 +13,49 @@ class Sort:
     def __init__(self, username: str):
         start_time = time.time()
 
-        self.hdr_path: str = os.path.dirname(os.path.realpath(__file__)) + '/hdr.json'
+        self.wd: str = os.path.dirname(os.path.realpath(__file__))
+        self.hdr_path: str = f'{self.wd}/hdr.json'
         self.hdr = {'User-Agent': self.get_user_hdr()}
 
-        self.db_path: str = os.path.dirname(os.path.realpath(__file__)) + '/db'
+        self.db_path: str = f'{self.wd}/db'
         if not os.path.isdir(self.db_path):
             os.makedirs(self.db_path)
 
         self.username: str = username
-        self.user_db_path: str = self.db_path + f'/{self.username}'
+        self.user_db_path: str = f'{self.db_path}/{self.username}'
+        self.user_url = f'https://api.chess.com/pub/player/{self.username}/games'
         self.archive_urls: list[str] = self.pull_archive_urls()
 
         self.new_user =  not os.path.isdir(self.user_db_path)
         if self.new_user:
             os.makedirs(self.user_db_path)
 
-        self.last_archive_url: str = ''
-        self.last_game: int = 0
+        self.last_archive_index: int = -1
+        self.last_game_number: int = -1
+        self.local_games_count: int = -1
         self.games: list[Game] = []
 
-        self.engine_limit = Game.create_engine()
-
-        self.read_last_pull()
+        self.set_last_pull_info()
         self.read_local_games()
 
-        for archive_url in self.archive_urls:
-            tot_games_in_month = self.update_games(archive_url)
+        self.games_to_process = []
 
-            if archive_url == self.archive_urls[-1]:
-                self.write_last_pull(archive_url, tot_games_in_month-1)
+        for archive_url in self.archive_urls:
+            self.update_games(archive_url)
+
+        processor = Parallelize()
+        self.games.extend(processor.process_all_games(self.games_to_process, self.username))
+        self.games_to_process = []
 
         # TODO: what if no games
         self.games.sort(key=lambda game: game.start_time)
 
-        self.first_month_year = Game.date_to_month_index(self.games[0].start_time)
-        self.last_month_year = Game.date_to_month_index(self.games[-1].start_time)
-        self.num_months_active = self.last_month_year - self.first_month_year + 1
+        self.first_month_index = self.games[0].month_index
+        self.last_month_index = self.games[-1].month_index
+        self.num_months_active = self.last_month_index - self.first_month_index + 1
 
+        self.write_games(self.games)
         self.new_user = False
-
-        Game.quit_engine(self.engine_limit[0])
 
         end_time = time.time()
 
@@ -70,14 +75,28 @@ class Sort:
 
     # get urls for archives per month
     def pull_archive_urls(self) -> list[str]:
-        url = f'https://api.chess.com/pub/player/{self.username}/games/archives'
-        response = requests.get(url, headers=self.hdr)
+        response = requests.get(f'{self.user_url}/archives', headers=self.hdr)
         if response.status_code != 200:
             print(f'error fetching archives: {response.status_code}')
             return []
 
-        archives = response.json().get('archives', [])
-        return archives
+        archive_urls = response.json().get('archives', [])
+
+        return archive_urls
+
+    def archive_url_to_archive_path(self, archive_url: str) -> str:
+        archive_url_split = archive_url.split('/')
+        if len(archive_url_split) > 2:
+            if archive_url_split[-2].isdigit() and archive_url_split[-1].isdigit():
+                year: int = int(archive_url_split[-2])
+                month: int = int(archive_url_split[-1])
+
+                return self.archive_year_month_to_path(year, month)
+
+        return ''
+
+    def archive_year_month_to_path (self, year: str, month: str):
+        return f'{self.user_db_path}/{year}_{month:02d}'
 
     # read games stored locally
     def read_local_games(self):
@@ -90,75 +109,111 @@ class Sort:
                 for filename in filenames:
                     file_path = os.path.join(root, filename)
                     with open(file_path, 'r') as file:
-                        self.games.append(Game(json.load(file), self.username, self.engine_limit, True))
+                        self.games.append(Game(json.load(file), self.username))
+
+        self.local_games_count = len(self.games)
 
     # updates locally stored games to be up-to-date with remote and returns #games in archive
-    def update_games(self, archive_url: str) -> int:
+    def update_games(self, archive_url: str):
         if self.new_user:
             return self.pull_games(archive_url)
 
         # if we are looking at archives from the same month or after the last pull
-        if Game.compare_archive_dates(self.last_archive_url, archive_url) <= 0:
-            last_game_in_folder = 0
-            if archive_url == self.last_archive_url:
-                last_game_in_folder = self.last_game  # only update new games since last pull
-            return self.pull_games(archive_url, last_game_in_folder)
+        archive_url_index: int = Sort.archive_url_to_index(archive_url)
+        if archive_url_index >= self.last_archive_index:
+            last_game_in_folder = -1
+            if archive_url_index == self.last_archive_index:
+                last_game_in_folder = self.last_game_number  # only update new games since last pull
+            self.pull_games(archive_url, last_game_in_folder)
 
-        return 0
-
-    # get all the games played in that archive and returns #valid games
-    def pull_games(self, archive, last_game_in_folder: int = 0) -> int:
+    # get all the games played in that archive
+    def pull_games(self, archive, last_game_in_folder: int = -1):
         response = requests.get(archive, headers=self.hdr)
         if response.status_code != 200:
             print(f'error fetching games: {response.status_code}')
-            return -1
 
         all_games = response.json().get('games', [])
+        valid_games = [game for game in all_games if Sort.is_valid_game(game)]
+        if (len(valid_games) - 1) == last_game_in_folder:
+            return
 
-        return self.write_games(all_games, archive, last_game_in_folder)
-
-    # write games to program data and database
-    def write_games(self, games: list, archive: str, last_game_in_folder: int) -> int:
-        tot_games_in_folder: int = 0
-
-        # save in program data
-        for game in games:
+        # save in program data to be processed
+        start_of_new_valid_games: int = last_game_in_folder + 1
+        for game_number, game in enumerate(valid_games[start_of_new_valid_games:], start=start_of_new_valid_games):
             if Sort.is_valid_game(game):
-                if tot_games_in_folder > last_game_in_folder:
-                    self.games.append(Game(game, self.username, self.engine_limit))
-                tot_games_in_folder += 1
+                if game_number > last_game_in_folder:
+                    self.games_to_process.append(game)
 
-        # get user db path
-        archive_split = archive.split('/')
-        archive_path = self.user_db_path + f'/{archive_split[-2]}_{archive_split[-1]}'
-        if not (os.path.isdir(archive_path)):
-            os.makedirs(archive_path)
+    # write games to database
+    def write_games(self, games: list):
+        game_number_counter: int = 0
+        last_index: int = -1
 
-        # index of first game in games for those just added
-        start_of_new_games: int = len(self.games) - (tot_games_in_folder - (last_game_in_folder + 1))
-        for i, game in enumerate(self.games[start_of_new_games:]):
-            with open(archive_path + f'/game{i + last_game_in_folder}.json', 'w') as file:
+        start_index = -1 if self.local_games_count == 0 else games[self.local_games_count - 1].month_index
+        for game in self.games[self.local_games_count:]:
+            archive_path = self.archive_year_month_to_path(game.start_time.year, game.start_time.month)
+
+            game_num_mod = 0
+            if game.month_index == start_index:
+                game_num_mod = self.last_game_number + 1
+            if game.month_index != last_index:
+                game_number_counter = 0
+                last_index = game.month_index
+
+                if not os.path.isdir(archive_path):
+                    os.makedirs(archive_path)
+
+            with open(archive_path + f'/game{game_number_counter + game_num_mod}.json', 'w') as file:
                 json.dump(game.dump, file, indent=4)
 
-        return tot_games_in_folder
+            game_number_counter += 1
 
-    # get info of when last pull was and read local games
-    def read_last_pull(self):
+    # set info of when last pull was based on present files
+    def set_last_pull_info(self):
         if not self.new_user:
-            with open(self.user_db_path + '/last_pull.json', 'r') as file:
-                last_pull = json.load(file)
-                self.last_archive_url = last_pull['archive_url']
-                self.last_game = last_pull['last_game']
+            self.last_archive_index = -1
+            self.last_game_number = -1
 
-    # update last_pull.json
-    def write_last_pull(self, archive_url: str, last_game: int):
-        last_pull = {
-            'archive_url': archive_url,
-            'last_game': last_game
-        }
+            last_month: str = ''
+            last_year: str = ''
+            most_recent_index: int = -1
 
-        with open(self.user_db_path + '/last_pull.json', 'w') as file:
-            json.dump(last_pull, file, indent=4)
+            archive_months: list[str] = os.listdir(self.user_db_path)
+            for archive_month in archive_months:
+                archive_month_split = archive_month.split('_')
+                if len(archive_month_split) == 2:
+                    if archive_month_split[0].isdigit() and archive_month_split[0].isdigit():
+                        year: str = archive_month_split[0]
+                        month: str = archive_month_split[1]
+                        index: int = Game.date_to_month_index(Game.make_datetime_obj(int(year), int(month)))
+                        if index > most_recent_index:
+                            last_year = year
+                            last_month = month
+                            most_recent_index = index
+
+            if most_recent_index != -1:
+                self.last_archive_index = most_recent_index
+
+                game_numbers_str = os.listdir(f'{self.user_db_path}/{last_year}_{last_month}')
+                pattern = re.compile(r'game(\d+)\.json')
+                game_numbers = [int(match.group(1)) for game_number in game_numbers_str
+                           if (match := pattern.search(game_number))]
+
+                if game_numbers:
+                    self.last_game_number = max(game_numbers)
+
+    @staticmethod
+    def archive_url_to_index(archive_url: str) -> int:
+        index = -1
+
+        archive_url_split = archive_url.split('/')
+        if len(archive_url_split) > 2:
+            if archive_url_split[-2].isdigit() and archive_url_split[-1].isdigit():
+                year: str = archive_url_split[-2]
+                month: str = archive_url_split[-1]
+                index: int = Game.date_to_month_index(Game.make_datetime_obj(int(year), int(month)))
+
+        return index
 
     @staticmethod
     def is_valid_game(game: list):
