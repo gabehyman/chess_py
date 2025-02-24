@@ -1,5 +1,7 @@
 db/
 .idea/
 __pycache__/
+test.py
+stats.py
 .DS_Store
 hdr.json
