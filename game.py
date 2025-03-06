@@ -5,6 +5,7 @@ import chess.pgn
 import chess.svg
 import chess.engine
 import webbrowser
+import contextlib
 import io
 
 chess_com_launch_date = datetime(2007, 5, 1)
@@ -14,6 +15,7 @@ class Game:
 
     def __init__(self, game: list, username: str, engine_limit: list = None, local: bool = True):
         if local:  # read locally stored game json
+            self.game_url: str = game['game_url']
             self.color: str = game['color']
             self.opponent: str = game['opponent']
             self.result: bool = game['result']
@@ -32,6 +34,7 @@ class Game:
             return
 
         # json pulled from chess.com archive
+        self.game_url: str = game['url']
         self.color: str = 'white' if game['white']['username'].lower() == username else 'black'
         self.opponent: str = game['white']['username'] if self.color != 'white' else game['black']['username']
         self.result: bool = game[self.color]['result']
@@ -51,7 +54,7 @@ class Game:
 
         # each move an ind element, remove numbering and result
         self.pgn_arr: list[str] = [move for move in self.pgn_str.split(' ') if '.' not in move]
-        self.eval_per_move: list[float] = Game.get_eval_per_move(self.pgn_str, engine_limit)
+        self.eval_per_move: list[float] = Game.get_eval_per_move(self.pgn_str, engine_limit, self.game_url)
 
         year, month, day = pgn_dirty[Game.find_line_number(game['pgn'], 'UTCDate')].split('\"')[1].split('.')
         hour, minute, sec = pgn_dirty[Game.find_line_number(game['pgn'], 'UTCTime')].split('\"')[1].split(':')
@@ -65,6 +68,7 @@ class Game:
         self.duration: float = (self.end_time - self.start_time).total_seconds()
 
         self.dump = {
+            'game_url': self.game_url,
             'color': self.color,
             'opponent': self.opponent,
             'result': self.result,
@@ -111,7 +115,12 @@ class Game:
     @staticmethod
     def pgn_str_to_node(pgn_str: str):
         pgn_stream = io.StringIO(pgn_str)
-        node = chess.pgn.read_game(pgn_stream)
+
+        with contextlib.redirect_stderr(io.StringIO()):
+            node = chess.pgn.read_game(pgn_stream)
+
+        if node.errors:
+            return None
 
         return node
 
@@ -131,9 +140,14 @@ class Game:
         return evaluation
 
     @staticmethod
-    def get_eval_per_move(pgn_str: str, engine_limit: list) -> list[float]:
+    def get_eval_per_move(pgn_str: str, engine_limit: list, game_url: str) -> list[float]:
         eval_per_move: list[float] = []
         node = Game.pgn_str_to_node(pgn_str)
+
+        if node is None:
+            print(f'invalid pgn for {game_url}, chess.com glitch??')
+            return []
+
         board = node.board()
 
         while node.variations:

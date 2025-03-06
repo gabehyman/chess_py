@@ -31,7 +31,6 @@ class Parallelize:
                 engine[0].quit()  # Assuming engine is a tuple with engine instance at index 0
             del cls._pid_to_engine[pid]
 
-        print(f'cleanup for {pid}')
 
     @classmethod
     def init_worker(cls, username):
@@ -46,7 +45,6 @@ class Parallelize:
         signal.signal(signal.SIGTERM, cls.cleanup_engine)
 
         pid = os.getpid()
-        print(f'init for {pid}')
 
     @staticmethod
     def process_game(args):
@@ -90,8 +88,6 @@ class Parallelize:
                 # Wait for cleanup tasks to complete
                 for task in cleanup_tasks:
                     task.result()
-
-                print(f'about to return')
 
                 return processed_games
 
