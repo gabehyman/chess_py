@@ -1,4 +1,10 @@
+"""
+### processes and stores game information
+"""
+
 from datetime import datetime
+
+from chess.engine import MateGiven
 from dateutil.relativedelta import relativedelta
 import re
 import chess.pgn
@@ -8,12 +14,15 @@ import webbrowser
 import io
 
 chess_com_launch_date = datetime(2007, 5, 1)
-stockfish_path = "/opt/homebrew/Cellar/stockfish/17/bin/stockfish"
+stockfish_path = "/opt/homebrew/Cellar/stockfish/17/bin/stockfish"  # may have to change for others
+# https://github.com/official-stockfish/Stockfish/blob/master/src/types.h has VALUE_MATE = 32000;
+check_mate_eval = 32000
 
 class Game:
 
-    def __init__(self, game: list, username: str, engine_limit: list, local: bool = False):
+    def __init__(self, game: list, username: str, engine_limit: list = None, local: bool = True):
         if local:  # read locally stored game json
+            self.game_url: str = game['game_url']
             self.color: str = game['color']
             self.opponent: str = game['opponent']
             self.result: bool = game['result']
@@ -32,7 +41,8 @@ class Game:
             return
 
         # json pulled from chess.com archive
-        self.color: str = 'white' if game['white']['username'] == username else 'black'
+        self.game_url: str = game['url']
+        self.color: str = 'white' if game['white']['username'].lower() == username else 'black'
         self.opponent: str = game['white']['username'] if self.color != 'white' else game['black']['username']
         self.result: bool = game[self.color]['result']
         self.final_elo: int = game[self.color]['rating']
@@ -41,6 +51,7 @@ class Game:
         self.game_time: float = float(time_control_info[0])
         self.time_inc: float = 0.0 if (len(time_control_info) == 1) else float(time_control_info[1])
 
+        # use reg exp to parse pgn stirng and extract relevant info
         pgn_dirty: list[str] = game['pgn'].splitlines()
         pgn_no_clocks: list[str] = re.sub(r"\s*\{\[%clk [^\}]+\]\}", "", pgn_dirty[-1])
 
@@ -51,20 +62,21 @@ class Game:
 
         # each move an ind element, remove numbering and result
         self.pgn_arr: list[str] = [move for move in self.pgn_str.split(' ') if '.' not in move]
-        self.eval_per_move: list[float] = Game.get_eval_per_move(self.pgn_str, engine_limit)
+        self.eval_per_move: list[float] = Game.get_eval_per_move(self.pgn_str, self.color, engine_limit, self.game_url)
 
         year, month, day = pgn_dirty[Game.find_line_number(game['pgn'], 'UTCDate')].split('\"')[1].split('.')
         hour, minute, sec = pgn_dirty[Game.find_line_number(game['pgn'], 'UTCTime')].split('\"')[1].split(':')
-        self.start_time: datetime = datetime(int(year), int(month), int(day), int(hour), int(minute), int(sec))
+        self.start_time: datetime = Game.make_datetime_obj(int(year), int(month), int(day), int(hour), int(minute), int(sec))
 
         year, month, day = pgn_dirty[Game.find_line_number(game['pgn'], 'EndDate')].split('\"')[1].split('.')
         hour, minute, sec = pgn_dirty[Game.find_line_number(game['pgn'], 'EndTime')].split('\"')[1].split(':')
-        self.end_time: datetime = datetime(int(year), int(month), int(day), int(hour), int(minute), int(sec))
+        self.end_time: datetime = Game.make_datetime_obj(int(year), int(month), int(day), int(hour), int(minute), int(sec))
         self.month_index: int = Game.date_to_month_index(self.start_time)
 
         self.duration: float = (self.end_time - self.start_time).total_seconds()
 
         self.dump = {
+            'game_url': self.game_url,
             'color': self.color,
             'opponent': self.opponent,
             'result': self.result,
@@ -80,8 +92,10 @@ class Game:
             'month_index': self.month_index,
             'duration': self.duration }
 
+
     @staticmethod
     def pgn_arr_to_str(pgn_arr: list[str], num_moves: int = -1) -> str:
+        """make a normal pgn from a serialized arr of moves"""
         num_moves = min(num_moves, len(pgn_arr))  # avoid inputting a num_move higher than total
         num_moves = len(pgn_arr) if num_moves == -1 else num_moves
 
@@ -91,6 +105,7 @@ class Game:
             if move_num > num_moves:
                 break
 
+            # add move# if both moves have been made
             if i%2 == 0:
                 pgn_str += f'{str(move_num)}. '
             pgn_str += pgn_arr[i] + ' '
@@ -99,6 +114,7 @@ class Game:
 
     @staticmethod
     def create_engine(depth: int = 10):
+        """create a stockfish engine with certain depth for eval"""
         engine = chess.engine.SimpleEngine.popen_uci(stockfish_path)
         limit = chess.engine.Limit(depth=depth)
 
@@ -106,70 +122,83 @@ class Game:
 
     @staticmethod
     def quit_engine(engine):
+        """kill engine process"""
         engine.quit()
 
     @staticmethod
     def pgn_str_to_node(pgn_str: str):
+        """convert a pgn str into a stockfish parsable node"""
         pgn_stream = io.StringIO(pgn_str)
         node = chess.pgn.read_game(pgn_stream)
 
         return node
 
     @staticmethod
-    def evaluate_board(board, engine_limit: list = None) -> float:
+    def evaluate_board(board, color: str, engine_limit: list = None) -> float:
+        """evaluate board based on user color"""
         if engine_limit is None:
             engine_limit = Game.create_engine()
 
         info = engine_limit[0].analyse(board, engine_limit[1])
-        score = info["score"]
+
+        # get score relative to player (if winning +, if losing -)
+        if color == 'black':
+            score = info["score"].black()
+        else:
+            score = info["score"].white()
 
         if score.is_mate():
-            evaluation = float('inf')
-        else:
-            evaluation = score.relative.cp / 100.0  # centipawn to pawn units
+            if score == MateGiven:  #mated
+                evaluation = check_mate_eval
+            else:  # follow stockfish
+                evaluation = (check_mate_eval - score.moves) / 100.0
+        else:  # centipawn to pawn units
+            evaluation = score.cp / 100.0
 
         return evaluation
 
     @staticmethod
-    def get_eval_per_move(pgn_str: str, engine_limit: list) -> list[float]:
+    def get_eval_per_move(pgn_str: str, color: str, engine_limit: list, game_url: str) -> list[float]:
+        """populate an array with eval at each board position"""
         eval_per_move: list[float] = []
         node = Game.pgn_str_to_node(pgn_str)
         board = node.board()
 
+        # go through each board position of game
         while node.variations:
             next_node = node.variation(0)
             board.push(next_node.move)
-            eval_per_move.append(Game.evaluate_board(board, engine_limit))
+            eval_per_move.append(Game.evaluate_board(board, color, engine_limit))
             node = next_node
 
         return eval_per_move
 
     @staticmethod
-    def show_scg_board_of_pgn(pgn_str: str):
-        svg_data = chess.svg.board(board=Game.pgn_str_to_node(pgn_str).board())
-
-        svg_file: str = 'board.svg'
-        with open(svg_file, "w") as f:
-            f.write(svg_data)
-        webbrowser.open('file://' + svg_file)
+    def make_datetime_obj(year: int, month: int, day: int = 1,
+                          hour: int = 22, minute: int = 22, second: int = 22) -> datetime:
+        """create datetime obj (only import here and can use in other places)"""
+        return datetime(year, month, day, hour, minute, second)
 
     @staticmethod
     def date_to_month_index(date: datetime) -> int:
+        """create a month index relative to when chess.com was launched"""
         return ((date.month - chess_com_launch_date.month)
                 + (date.year - chess_com_launch_date.year) * 12)
 
     @staticmethod
     def month_index_to_date(month_index) -> datetime:
+        """convert from month index to a datetime obj"""
         return chess_com_launch_date + relativedelta(months=+month_index)
 
     @staticmethod
     def month_index_to_str_months(month_index) -> str:
+        """convert month index into nice month str (aug99, feb66, etc)"""
         date: datetime = Game.month_index_to_date(month_index)
         return date.strftime('%b').lower() + str(date.year)[-2:]
 
-    # find at which line number a substr appears
     @staticmethod
     def find_line_number(full_str: str, sub_str: str) -> int:
+        """find at which line number a substr appears"""
         index = full_str.find(sub_str)
         if index == -1:
             return -1
@@ -177,38 +206,36 @@ class Game:
         line_number = full_str.count('\n', 0, index)
         return line_number
 
-    # turn pgn with clock info into time per move
     @staticmethod
     def time_per_move(dirty_pgn: list[str], game_time: float, time_inc: float, color: str) -> list[float]:
-        # extract clock times
+        """turn pgn with clock info into time per move"""
+        # extract clock times using reg exp
         clock_times: list[str] = re.findall(r'\{\[%clk ([^\]]+)\]\}', dirty_pgn)
 
         start_clock: int = 0 if color == 'white' else 1
 
         time_per_move: list[float] = []
         prev_time: float = game_time + time_inc
-        for clock_time in clock_times[start_clock::2]:
+        for clock_time in clock_times[start_clock::2]:  # iterate thru only users moves (skip 1)
             seconds_time: float = Game.clock_to_seconds(clock_time)
             time_per_move.append(prev_time - seconds_time)
             prev_time = seconds_time + time_inc
 
         return time_per_move
 
-    # convert clock time into seconds
     @staticmethod
     def clock_to_seconds(clock_time: str) -> float:
+        """convert clock time into seconds"""
         hours, minutes, seconds = clock_time.split(':')
         return float(int(hours) * 3600 + int(minutes) * 60 + float(seconds))
 
-    # compare the date of two archives
     @staticmethod
-    def compare_archive_dates(base: str, comp: str) -> int:
-        base_split = base.split('/')
-        base_dt_obj: datetime = datetime(int(base_split[-2]), int(base_split[-1]), 1)
+    def show_svg_board_of_pgn(pgn_str: str):
+        """show the svg of the board given a pgn string"""
+        svg_data = chess.svg.board(board=Game.pgn_str_to_node(pgn_str).board())
 
-        comp_split = comp.split('/')
-        comp_dt_obj: datetime = datetime(int(comp_split[-2]), int(comp_split[-1]), 1)
-
-        return (base_dt_obj - comp_dt_obj).days
-
+        svg_file: str = 'board.svg'
+        with open(svg_file, "w") as f:
+            f.write(svg_data)
+        webbrowser.open('file://' + svg_file)
 
