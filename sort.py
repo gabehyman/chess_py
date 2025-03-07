@@ -1,3 +1,6 @@
+"""
+### facilitate the pulling/reading/storing of games of a user
+"""
 import requests
 import re
 import os
@@ -14,6 +17,8 @@ class Sort:
         start_time = time.time()
 
         self.wd: str = os.path.dirname(os.path.realpath(__file__))
+
+        # needed for chess.com api call
         self.hdr_path: str = f'{self.wd}/hdr.json'
         self.hdr = {'User-Agent': self.get_user_hdr()}
 
@@ -35,25 +40,29 @@ class Sort:
         self.local_games_count: int = -1
         self.games: list[Game] = []
 
+        # read thru local files and determine when the last pull was (get archive url)
         self.set_last_pull_info()
+
+        # read in local games and populate porgram data
         self.read_local_games()
 
+        # populate games info to pass into parallelizer to make game objects
         self.games_to_process = []
-
         for archive_url in self.archive_urls:
             self.update_games(archive_url)
 
+        # process all games in parallel
         processor = Parallelize()
         self.games.extend(processor.process_all_games(self.games_to_process, self.username))
         self.games_to_process = []
 
-        # TODO: what if no games
-        self.games.sort(key=lambda game: game.start_time)
 
+        self.games.sort(key=lambda game: game.start_time)
         self.first_month_index = self.games[0].month_index
         self.last_month_index = self.games[-1].month_index
         self.num_months_active = self.last_month_index - self.first_month_index + 1
 
+        # save program data in json files
         self.write_games(self.games)
         self.new_user = False
 
@@ -62,6 +71,7 @@ class Sort:
         self.time_to_sort: float = end_time - start_time
 
     def get_user_hdr(self) -> str:
+        """"get hdr info for chess.com api and write to file"""
         if not os.path.exists(self.hdr_path):
             hdr = input('enter a valid chess.com email to query api: ').strip()
             with open(self.hdr_path, 'w') as file:
@@ -73,8 +83,8 @@ class Sort:
 
         return hdr
 
-    # get urls for archives per month
     def pull_archive_urls(self) -> list[str]:
+        """get urls for archives per month"""
         response = requests.get(f'{self.user_url}/archives', headers=self.hdr)
         if response.status_code != 200:
             print(f'error fetching archives: {response.status_code}')
@@ -85,6 +95,7 @@ class Sort:
         return archive_urls
 
     def archive_url_to_archive_path(self, archive_url: str) -> str:
+        """"get the associated dir path of an archive url"""
         archive_url_split = archive_url.split('/')
         if len(archive_url_split) > 2:
             if archive_url_split[-2].isdigit() and archive_url_split[-1].isdigit():
@@ -96,10 +107,11 @@ class Sort:
         return ''
 
     def archive_year_month_to_path (self, year: str, month: str):
+        """take year and month of archive and get associated dir path"""
         return f'{self.user_db_path}/{year}_{month:02d}'
 
-    # read games stored locally
     def read_local_games(self):
+        """read games stored locally and save to program data"""
         if not self.new_user:
             for root, dirs, filenames in os.walk(self.user_db_path):
                 # skip hidden dirs/files like .git, .DS_Store, etc. and just focus on .json
@@ -113,8 +125,9 @@ class Sort:
 
         self.local_games_count = len(self.games)
 
-    # updates locally stored games to be up-to-date with remote and returns #games in archive
     def update_games(self, archive_url: str):
+        """# updates locally stored games to be up-to-date with remote and returns #games in archive
+        only look at games after the last game written"""
         if self.new_user:
             return self.pull_games(archive_url)
 
@@ -126,8 +139,8 @@ class Sort:
                 last_game_in_folder = self.last_game_number  # only update new games since last pull
             self.pull_games(archive_url, last_game_in_folder)
 
-    # get all the games played in that archive
     def pull_games(self, archive, last_game_in_folder: int = -1):
+        """get all the games played in that archive"""
         response = requests.get(archive, headers=self.hdr)
         if response.status_code != 200:
             print(f'error fetching games: {response.status_code}')
@@ -144,15 +157,17 @@ class Sort:
                 if game_number > last_game_in_folder:
                     self.games_to_process.append(game)
 
-    # write games to database
     def write_games(self, games: list):
+        """write games to local database"""
         game_number_counter: int = 0
         last_index: int = -1
 
+        # correct indexing of .json file names (start with game0)
         start_index = -1 if self.local_games_count == 0 else games[self.local_games_count - 1].month_index
         for game in self.games[self.local_games_count:]:
             archive_path = self.archive_year_month_to_path(game.start_time.year, game.start_time.month)
 
+            # increases correctly based on last game in db
             game_num_mod = 0
             if game.month_index == start_index:
                 game_num_mod = self.last_game_number + 1
@@ -168,8 +183,8 @@ class Sort:
 
             game_number_counter += 1
 
-    # set info of when last pull was based on present files
     def set_last_pull_info(self):
+        """set info of when last pull was based on present files"""
         if not self.new_user:
             self.last_archive_index = -1
             self.last_game_number = -1
@@ -194,16 +209,18 @@ class Sort:
             if most_recent_index != -1:
                 self.last_archive_index = most_recent_index
 
+                # use reg exp to extract all game#s of all files and store as array
                 game_numbers_str = os.listdir(f'{self.user_db_path}/{last_year}_{last_month}')
                 pattern = re.compile(r'game(\d+)\.json')
                 game_numbers = [int(match.group(1)) for game_number in game_numbers_str
                            if (match := pattern.search(game_number))]
 
                 if game_numbers:
-                    self.last_game_number = max(game_numbers)
+                    self.last_game_number = max(game_numbers)  # max = last
 
     @staticmethod
     def archive_url_to_index(archive_url: str) -> int:
+        """convert archive url to month index"""
         index = -1
 
         archive_url_split = archive_url.split('/')
@@ -217,4 +234,8 @@ class Sort:
 
     @staticmethod
     def is_valid_game(game: list):
-        return game['time_class'] in valid_time_classes and 'pgn' in game and game['rules'] == 'chess'
+        """only process normal chess games of valid time classes with pgn and normal starting pos"""
+        return (game['time_class'] in valid_time_classes
+                and 'pgn' in game
+                and game['rules'] == 'chess'
+                and game['initial_setup'] == '')
