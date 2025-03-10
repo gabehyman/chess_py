@@ -33,7 +33,6 @@ class Parallelize:
                 engine[0].quit()
             del cls._pid_to_engine[pid]
 
-
     @classmethod
     def init_worker(cls, username):
         """init worker process"""

@@ -56,7 +56,7 @@ class Sort:
         self.games.extend(processor.process_all_games(self.games_to_process, self.username))
         self.games_to_process = []
 
-
+        # sort games in chrono order
         self.games.sort(key=lambda game: game.start_time)
         self.first_month_index = self.games[0].month_index
         self.last_month_index = self.games[-1].month_index
@@ -217,6 +217,14 @@ class Sort:
 
                 if game_numbers:
                     self.last_game_number = max(game_numbers)  # max = last
+
+    def find_games_against(self, opponent: str):
+        games_against: list[Game] = []
+        for game in self.games:
+            if game.opponent == opponent:
+                games_against.append(game)
+
+        return games_against
 
     @staticmethod
     def archive_url_to_index(archive_url: str) -> int:

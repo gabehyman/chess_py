@@ -3,6 +3,7 @@
 """
 
 from datetime import datetime
+from enum import Enum
 
 from chess.engine import MateGiven
 from dateutil.relativedelta import relativedelta
@@ -18,14 +19,25 @@ stockfish_path = "/opt/homebrew/Cellar/stockfish/17/bin/stockfish"  # may have t
 # https://github.com/official-stockfish/Stockfish/blob/master/src/types.h has VALUE_MATE = 32000;
 check_mate_eval = 32000
 
+class Result(Enum):
+    WIN = 0
+    DRAW = 1
+    LOSS = 2
+
+class Color(Enum):
+    WHITE = 0
+    BLACK = 1
+
 class Game:
 
     def __init__(self, game: list, username: str, engine_limit: list = None, local: bool = True):
         if local:  # read locally stored game json
             self.game_url: str = game['game_url']
-            self.color: str = game['color']
+            self.color_str: str = game['color_str']
+            self.color: Color = Color(game['color'])
             self.opponent: str = game['opponent']
-            self.result: bool = game['result']
+            self.result_str: str = game['result_str']
+            self.result: Result = Result(game['result'])
             self.final_elo: int = game['final_elo']
             self.game_time: float = game['game_time']
             self.time_inc: float = game['time_inc']
@@ -42,10 +54,12 @@ class Game:
 
         # json pulled from chess.com archive
         self.game_url: str = game['url']
-        self.color: str = 'white' if game['white']['username'].lower() == username else 'black'
-        self.opponent: str = game['white']['username'] if self.color != 'white' else game['black']['username']
-        self.result: bool = game[self.color]['result']
-        self.final_elo: int = game[self.color]['rating']
+        self.color_str: str = 'white' if game['white']['username'].lower() == username else 'black'
+        self.color: Color = Color.WHITE if self.color_str == 'white' else Color.BLACK
+        self.opponent: str = game['white']['username'] if self.color != Color.WHITE else game['black']['username']
+        self.result_str: str = game[self.color_str]['result']
+        self.result: Result = Game.determine_result(self.result_str)
+        self.final_elo: int = game[self.color_str]['rating']
 
         time_control_info: list[str] = game['time_control'].split('+')
         self.game_time: float = float(time_control_info[0])
@@ -62,7 +76,7 @@ class Game:
 
         # each move an ind element, remove numbering and result
         self.pgn_arr: list[str] = [move for move in self.pgn_str.split(' ') if '.' not in move]
-        self.eval_per_move: list[float] = Game.get_eval_per_move(self.pgn_str, self.color, engine_limit, self.game_url)
+        self.eval_per_move: list[float] = Game.get_eval_per_move(self.pgn_str, self.color, engine_limit)
 
         year, month, day = pgn_dirty[Game.find_line_number(game['pgn'], 'UTCDate')].split('\"')[1].split('.')
         hour, minute, sec = pgn_dirty[Game.find_line_number(game['pgn'], 'UTCTime')].split('\"')[1].split(':')
@@ -77,9 +91,11 @@ class Game:
 
         self.dump = {
             'game_url': self.game_url,
-            'color': self.color,
+            'color_str': self.color_str,
+            'color': self.color.value,
             'opponent': self.opponent,
-            'result': self.result,
+            'result_str': self.result_str,
+            'result': self.result.value,
             'final_elo': self.final_elo,
             'game_time': self.game_time,
             'time_inc': self.time_inc,
@@ -92,6 +108,20 @@ class Game:
             'month_index': self.month_index,
             'duration': self.duration }
 
+    @staticmethod
+    def determine_result(result: str) -> Result:
+        if result == 'win':
+            return Result.WIN
+        if (result == 'checkmated' or result == 'resigned' or result == 'timeout' or
+                result == 'abandoned' or result == 'lose'):
+            return Result.LOSS
+
+        # the rest are draws: 'stalemate', 'repetition', 'agreed', '50move', 'timevsinsufficient'
+        return Result.DRAW
+
+    @staticmethod
+    def pgn_str_to_arr(pgn_st: str):
+        return [move for move in pgn_st.split(' ') if '.' not in move]
 
     @staticmethod
     def pgn_arr_to_str(pgn_arr: list[str], num_moves: int = -1) -> str:
@@ -134,7 +164,7 @@ class Game:
         return node
 
     @staticmethod
-    def evaluate_board(board, color: str, engine_limit: list = None) -> float:
+    def evaluate_board(board, color: Color, engine_limit: list = None) -> float:
         """evaluate board based on user color"""
         if engine_limit is None:
             engine_limit = Game.create_engine()
@@ -142,10 +172,10 @@ class Game:
         info = engine_limit[0].analyse(board, engine_limit[1])
 
         # get score relative to player (if winning +, if losing -)
-        if color == 'black':
-            score = info["score"].black()
-        else:
+        if color == Color.WHITE:
             score = info["score"].white()
+        else:
+            score = info["score"].black()
 
         if score.is_mate():
             if score == MateGiven:  #mated
@@ -158,7 +188,7 @@ class Game:
         return evaluation
 
     @staticmethod
-    def get_eval_per_move(pgn_str: str, color: str, engine_limit: list, game_url: str) -> list[float]:
+    def get_eval_per_move(pgn_str: str, color: Color, engine_limit: list) -> list[float]:
         """populate an array with eval at each board position"""
         eval_per_move: list[float] = []
         node = Game.pgn_str_to_node(pgn_str)
@@ -207,16 +237,14 @@ class Game:
         return line_number
 
     @staticmethod
-    def time_per_move(dirty_pgn: list[str], game_time: float, time_inc: float, color: str) -> list[float]:
+    def time_per_move(dirty_pgn: list[str], game_time: float, time_inc: float, color: Color) -> list[float]:
         """turn pgn with clock info into time per move"""
         # extract clock times using reg exp
         clock_times: list[str] = re.findall(r'\{\[%clk ([^\]]+)\]\}', dirty_pgn)
 
-        start_clock: int = 0 if color == 'white' else 1
-
         time_per_move: list[float] = []
         prev_time: float = game_time + time_inc
-        for clock_time in clock_times[start_clock::2]:  # iterate thru only users moves (skip 1)
+        for clock_time in clock_times[color.value::2]:  # iterate thru only users moves (skip 1)
             seconds_time: float = Game.clock_to_seconds(clock_time)
             time_per_move.append(prev_time - seconds_time)
             prev_time = seconds_time + time_inc
