@@ -258,12 +258,12 @@ class Game:
         return float(int(hours) * 3600 + int(minutes) * 60 + float(seconds))
 
     @staticmethod
-    def show_svg_board_of_pgn(pgn_str: str):
+    def show_svg_board_of_pgn(pgn_str: str, wd: str):
         """show the svg of the board given a pgn string"""
         svg_data = chess.svg.board(board=Game.pgn_str_to_node(pgn_str).board())
 
         svg_file: str = 'board.svg'
         with open(svg_file, "w") as f:
             f.write(svg_data)
-        webbrowser.open('file://' + svg_file)
+        webbrowser.open('file://' + wd + svg_file)
 

@@ -1,6 +1,7 @@
 from dash import Dash, dcc, html, Input, Output, State, callback_context, ALL
 import dash_bootstrap_components as dbc
 
+from game import Game
 from game import Result
 from game import Color
 
@@ -12,8 +13,8 @@ class UI:
 
     def show_layout(self):
         app.layout = self.layout()
-        self.callback(app)
-        app.run_server(debug=True)
+        self.callback()
+        app.run_server(debug=False)
 
     def get_and_sort_opening_stats(self, depth: int, color: int, result: int, display: int):
         sorted_openings: dict[str, list[list[int]]] = self.stats.get_and_sort_opening_stats(depth, color, result,
@@ -95,15 +96,13 @@ class UI:
             # Get the list of openings and make sure we don't go out of bounds
             openings = list(sorted_openings_data.keys())
             if 0 <= clicked_index < len(openings) and clicked_index < display_count:
-                print(openings[
-                          clicked_index])  # You can do something else instead of printing, like displaying an image
+                Game.show_svg_board_of_pgn(openings[clicked_index])
+                print(openings[clicked_index])  # You can do something else instead of printing, like displaying an image
                 return openings[clicked_index]
         except:
             pass
 
         return None
-
-
 
     def layout(self):
         return dbc.Container([
@@ -124,7 +123,6 @@ class UI:
                     ),
                     dbc.Collapse(
                         dbc.CardBody([
-                            # Sort by color
                             html.Div([
                                 html.H6("color", className="mb-2"),
                                 dcc.RadioItems(
@@ -140,7 +138,6 @@ class UI:
                                 )
                             ], className="mb-3"),
 
-                            # Sort by result
                             html.Div([
                                 html.H6("result", className="mb-2"),
                                 dcc.RadioItems(
@@ -157,7 +154,6 @@ class UI:
                                 )
                             ], className="mb-3"),
 
-                            # Sort by depth
                             html.Div([
                                 html.H6("depth", className="mb-2"),
                                 dbc.Row([
@@ -165,7 +161,6 @@ class UI:
                                 ], className='align-items-center mb-2'),
                             ], className="mb-3"),
 
-                            # Sort by display count
                             html.Div([
                                 html.H6("display", className="mb-2"),
                                 dbc.Row([
@@ -174,7 +169,7 @@ class UI:
                             ], className="mb-3"),
                         ]),
                         id="sort-collapse",
-                        is_open=True  # Default: sorting options are visible
+                        is_open=True
                     ),
                 ]),
 
@@ -183,9 +178,15 @@ class UI:
                     html.Div(id="filtered-results", className="p-2 border rounded bg-dark"),
                 ])
             ], className='mb-3'),
+
+            # **Ensure `opened-opening-store` is always part of the layout**
+            dcc.Store(id='opened-opening-store', data=None),
+            dcc.Store(id='sorted-openings-store', data={}),
+            dcc.Store(id='display-count-store', data=10)
         ], fluid=True)
 
-    def callback(self, app):
+
+    def callback(self):
         # Toggle the collapse when clicking the button
         @app.callback(
             Output("sort-collapse", "is_open"),
