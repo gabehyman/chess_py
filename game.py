@@ -12,12 +12,14 @@ import chess.pgn
 import chess.svg
 import chess.engine
 import webbrowser
+import urllib.parse
 import io
 
 chess_com_launch_date = datetime(2007, 5, 1)
 stockfish_path = "/opt/homebrew/Cellar/stockfish/17/bin/stockfish"  # may have to change for others
 # https://github.com/official-stockfish/Stockfish/blob/master/src/types.h has VALUE_MATE = 32000;
 check_mate_eval = 32000
+mate_eval = 319
 
 class Result(Enum):
     WIN = 0
@@ -266,4 +268,13 @@ class Game:
         with open(svg_file, "w") as f:
             f.write(svg_data)
         webbrowser.open('file://' + wd + svg_file)
+
+    @staticmethod
+    def open_pgn_in_chess_com(pgn: str):
+        # get total number of moves (doesn't need to be exact, just always >= real# so we open at end)
+        num_moves = pgn.count('.') * 2
+        encoded_pgn = urllib.parse.quote(pgn)
+        url = f"https://www.chess.com/analysis?tab=analysis&setup=fen&pgn={encoded_pgn}&move={num_moves}"
+        webbrowser.open(url)
+
 
