@@ -166,9 +166,9 @@ def layout(app):
     return dbc.Container([
         # store stats object
         dcc.Store(id='stats-store', storage_type='session'),
-        html.H2(app.server.config['username'], className='text-center mb-3 text-primary'),
+        html.H1(app.server.config['username'], className='text-center mb-3 text-primary'),
         dbc.Card([
-            dbc.CardHeader(html.H4('openings', className='text-center text-warning')),
+            dbc.CardHeader(html.H2('openings', className='text-center text-warning')),
 
             dbc.CardBody([
                 dbc.Button('options ▼', id='collapse-button', color='primary',

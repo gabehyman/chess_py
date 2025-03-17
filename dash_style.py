@@ -12,18 +12,56 @@ class DashStyle:
     def get_landing_title_style():
         return {
             "textAlign": "center",
-            "fontSize": "4rem",
-            "marginBottom": "2rem",
+            "fontSize": "70px",
             "color": "#00bcd4"
         }
 
     @staticmethod
+    def get_landing_sub_title_style():
+        return {
+            "textAlign": "center",
+            "fontSize": "40px",
+            'fontStyle': 'bold',
+            "marginTop": "6rem",
+            "marginBottom": "1rem",
+            "color": "#00bcd4"  # cyborg blue
+        }
+
+    @staticmethod
+    def get_user_button_style():
+        return {
+            'color': 'white',  # Cyborg orange
+            'textDecoration': 'underline',
+            'backgroundColor': 'rgba(243, 156, 0, 0.9)',
+            'fontStyle': 'italic',
+            'borderRadius': '25px',
+            'border': 'none',
+            'fontSize': '24px',
+            'cursor': 'pointer',
+            'padding': '5px 10px',
+            'marginBottom': '10px'
+        }
+
+    @staticmethod
+    def get_user_button_div_style():
+        return {
+                'display': 'flex',
+                'flexWrap': 'wrap',
+                'justifyContent': 'center',
+                'gap': '20px',
+                'maxWidth': '60%',
+                'margin': 'auto'
+            }
+
+    @staticmethod
     def get_landing_style():
-        return {"display": "flex",
-                "flexDirection": "column",
-                "justifyContent": "center",
-                "alignItems": "center",
-                "height": "100vh"}
+        return {
+            "display": "flex",
+            "flexDirection": "column",
+            "justifyContent": "center",
+            "alignItems": "center",
+            "height": "100vh"
+        }
 
     @staticmethod
     def get_user_input_style():
@@ -32,7 +70,8 @@ class DashStyle:
             "height": "60px",
             "fontSize": "2rem",
             "textAlign": "center",
-            'borderRadius': '25px'
+            'borderRadius': '25px',
+            'margin-right': '14px'
         }
 
     @staticmethod
@@ -43,7 +82,7 @@ class DashStyle:
             "backgroundColor": "#f39c12",
             "color": "white",
             "border": "none",
-            "transition": "background-color 0.3s ease"}
+        }
 
     @staticmethod
     def get_header_style(style, font_size='20px'):

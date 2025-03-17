@@ -247,3 +247,11 @@ class Sort:
                 and 'pgn' in game
                 and game['rules'] == 'chess'
                 and game['initial_setup'] == '')
+
+    @staticmethod
+    def preloaded_usernames() -> list[str]:
+        db_path: str = f'{os.path.dirname(os.path.realpath(__file__))}/db'
+        preloaded_users: list[str] = [username for username in os.listdir(db_path)
+                                      if os.path.isdir(os.path.join(db_path, username))]
+
+        return preloaded_users
