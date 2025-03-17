@@ -42,11 +42,21 @@ def main():
         elif pathname == "/openings":
             return openings_page.layout(app)
         else:
-            return html.H1("404 - page not found")
+            return html.Div([
+                html.H1("404 - page not found", style={'color': 'white'}),
+                html.A("return to landing page", href="/landing",
+                       style={
+                           'color': '#f39c00',
+                           'textDecoration': 'underline',
+                           'fontSize': '26px',
+                           'cursor': 'pointer'
+                       })
+            ], style={'textAlign': 'center', 'marginTop': '50px'})
 
     # open and run
     webbrowser.open("http://localhost:8050/landing")
-    app.run_server(debug=True, use_reloader=False)
+    app.run_server(debug=True)
+    # app.run_server(debug=True, use_reloader=False)
 
 if __name__ == '__main__':
     main()

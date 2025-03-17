@@ -251,7 +251,10 @@ class Sort:
     @staticmethod
     def preloaded_usernames() -> list[str]:
         db_path: str = f'{os.path.dirname(os.path.realpath(__file__))}/db'
-        preloaded_users: list[str] = [username for username in os.listdir(db_path)
-                                      if os.path.isdir(os.path.join(db_path, username))]
+        preloaded_users: list[str] = []
+
+        if os.path.exists(db_path):
+            preloaded_users: list[str] = [username for username in os.listdir(db_path)
+                                          if os.path.isdir(os.path.join(db_path, username))]
 
         return preloaded_users

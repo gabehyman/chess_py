@@ -70,14 +70,12 @@ def layout():
                         style=DashStyle.get_enter_button_style()),
         ], style=DashStyle.get_div_style(width='40%', height='100px', border_bottom='')),
 
-
-
         # store to handle username from button click
         dcc.Store(id="selected-username"),
-        html.H1("quick load:",
-                style=DashStyle.get_landing_sub_title_style()),
         #grid for previous usernames
         html.Div([
+            html.H1("quick load:",
+                    style=DashStyle.get_landing_sub_title_style()),
             html.Div([
                 html.Button(name, id={'type': 'username-btn', 'index': name}, n_clicks=0,
                             style=DashStyle.get_user_button_style())
