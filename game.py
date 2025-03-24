@@ -16,10 +16,10 @@ import urllib.parse
 import io
 
 chess_com_launch_date = datetime(2007, 5, 1)
-stockfish_path = "/opt/homebrew/Cellar/stockfish/17/bin/stockfish"  # may have to change for others
+stockfish_path = '/opt/homebrew/Cellar/stockfish/17/bin/stockfish' # how to put on cloud??
 # https://github.com/official-stockfish/Stockfish/blob/master/src/types.h has VALUE_MATE = 32000;
 check_mate_eval = 32000
-mate_eval = 319
+mate_eval = 31900  # mate in 100 moves (superfluous)
 
 class Result(Enum):
     WIN = 0
@@ -31,18 +31,18 @@ class Color(Enum):
     BLACK = 1
 
 class Game:
-
-    def __init__(self, game: list, username: str, engine_limit: list = None, local: bool = True):
+    def __init__(self, game: list, username: str, local: bool = True):
         if local:  # read locally stored game json
             self.game_url: str = game['game_url']
             self.color_str: str = game['color_str']
             self.color: Color = Color(game['color'])
-            self.opponent: str = game['opponent']
             self.result_str: str = game['result_str']
             self.result: Result = Result(game['result'])
             self.final_elo: int = game['final_elo']
+            self.opp: str = game['opp']
+            self.result_str_opp: str = game['result_str_opp']
+            self.time_class: str = game['time_class']
             self.game_time: float = game['game_time']
-            self.time_inc: float = game['time_inc']
             self.time_per_move: list[float] = game['time_per_move']
             self.pgn_str: str = game['pgn_str']
             self.pgn_arr: list[str] = game['pgn_arr']
@@ -58,49 +58,63 @@ class Game:
         self.game_url: str = game['url']
         self.color_str: str = 'white' if game['white']['username'].lower() == username else 'black'
         self.color: Color = Color.WHITE if self.color_str == 'white' else Color.BLACK
-        self.opponent: str = game['white']['username'] if self.color != Color.WHITE else game['black']['username']
         self.result_str: str = game[self.color_str]['result']
         self.result: Result = Game.determine_result(self.result_str)
         self.final_elo: int = game[self.color_str]['rating']
 
+        # opponent info
+        color_str_opp: str = 'white' if self.color_str == 'black' else 'white'
+        self.opp: str = game[color_str_opp]['username']
+        self.result_str_opp: str = game[color_str_opp]['result']
+
+        self.time_class: str = game['time_class']
         time_control_info: list[str] = game['time_control'].split('+')
-        self.game_time: float = float(time_control_info[0])
-        self.time_inc: float = 0.0 if (len(time_control_info) == 1) else float(time_control_info[1])
+        self.game_time: float = 0.0 if self.time_class == 'daily' else float(time_control_info[0])
+        time_inc: float = 0.0 if (len(time_control_info) == 1) else float(time_control_info[1])
 
-        # use reg exp to parse pgn stirng and extract relevant info
+        # get pgn
         pgn_dirty: list[str] = game['pgn'].splitlines()
-        pgn_no_clocks: list[str] = re.sub(r"\s*\{\[%clk [^\}]+\]\}", "", pgn_dirty[-1])
 
-        self.time_per_move: list[float] = Game.time_per_move(pgn_dirty[-1], self.game_time, self.time_inc, self.color)
-        pgn_str_w_result: str = re.sub(r'\d+\.\.\.\s*', '', pgn_no_clocks).strip()
-        index_start_index: int = pgn_str_w_result.rfind(' ')  # remove result at end
-        self.pgn_str: str = pgn_str_w_result[:index_start_index] if index_start_index != -1 else pgn_str_w_result
+        # ignore time per move for daily games (inflates numbers/trivial)
+        self.time_per_move = []
+        if self.time_class != 'daily':
+            self.time_per_move: list[float] = Game.get_time_per_move(pgn_dirty[-1], self.game_time, time_inc)
+
+        # clean pgn (no clocks or result)
+        self.pgn_str: str = Game.get_clean_pgn(pgn_dirty[-1])
 
         # each move an ind element, remove numbering and result
-        self.pgn_arr: list[str] = [move for move in self.pgn_str.split(' ') if '.' not in move]
-        self.eval_per_move: list[float] = Game.get_eval_per_move(self.pgn_str, self.color, engine_limit)
+        self.pgn_arr: list[str] = Game.pgn_str_to_arr(self.pgn_str)
 
+        # initially store as empty array, all games evaluated in separate thread
+        self.eval_per_move: list[float] = []
+
+        # start date info
         year, month, day = pgn_dirty[Game.find_line_number(game['pgn'], 'UTCDate')].split('\"')[1].split('.')
         hour, minute, sec = pgn_dirty[Game.find_line_number(game['pgn'], 'UTCTime')].split('\"')[1].split(':')
         self.start_time: datetime = Game.make_datetime_obj(int(year), int(month), int(day), int(hour), int(minute), int(sec))
-
+        # end date info
         year, month, day = pgn_dirty[Game.find_line_number(game['pgn'], 'EndDate')].split('\"')[1].split('.')
         hour, minute, sec = pgn_dirty[Game.find_line_number(game['pgn'], 'EndTime')].split('\"')[1].split(':')
         self.end_time: datetime = Game.make_datetime_obj(int(year), int(month), int(day), int(hour), int(minute), int(sec))
         self.month_index: int = Game.date_to_month_index(self.start_time)
 
-        self.duration: float = (self.end_time - self.start_time).total_seconds()
+        # ignore how long daily games go for (inflates numbers/trivial)
+        self.duration = 0.0
+        if self.time_class != 'daily':
+            self.duration: float = (self.end_time - self.start_time).total_seconds()
 
         self.dump = {
             'game_url': self.game_url,
             'color_str': self.color_str,
             'color': self.color.value,
-            'opponent': self.opponent,
             'result_str': self.result_str,
             'result': self.result.value,
             'final_elo': self.final_elo,
+            'opp': self.opp,
+            'result_str_opp': self.result_str_opp,
+            'time_class': self.time_class,
             'game_time': self.game_time,
-            'time_inc': self.time_inc,
             'time_per_move': self.time_per_move,
             'pgn_str': self.pgn_str,
             'pgn_arr': self.pgn_arr,
@@ -110,8 +124,65 @@ class Game:
             'month_index': self.month_index,
             'duration': self.duration }
 
+    def get_eval_per_move(self, engine_limit: list):
+        """
+        ### populate an array with eval at each board position
+        ### (called in parallelize when evals are calculated via asycnh multi-threading)
+        """
+        # set up board
+        node = Game.pgn_str_to_node(self.pgn_str)
+        board = node.board()
+
+        # go through each board position of game and eval
+        while node.variations:
+            next_node = node.variation(0)
+            board.push(next_node.move)
+            self.eval_per_move.append(Game.evaluate_board(board, self.color, engine_limit))
+            node = next_node
+
+    @staticmethod
+    def evaluate_board(board, color: Color, engine_limit: list = None) -> float:
+        """evaluate board based on user color"""
+        if engine_limit is None:
+            engine_limit = Game.create_engine()
+
+        info = engine_limit[0].analyse(board, engine_limit[1])
+
+        # get score relative to player (if winning +, if losing -)
+        if color == Color.WHITE:
+            score = info['score'].white()
+        else:
+            score = info['score'].black()
+
+        if score.is_mate():
+            if score == MateGiven:  # mated
+                evaluation = check_mate_eval
+            else:
+                evaluation = check_mate_eval - abs(score.moves)
+        else:  # centipawn to pawn units
+            evaluation = score.cp / 100.0
+
+        return evaluation
+
+    @staticmethod
+    def eval_to_mate_str(evaluation, color: int):
+        """turn eval value into str (converting mates to wM/bM#moves)"""
+        # if we don't have the evals yet show them as loading
+        if not evaluation:
+            return 'loading...'
+
+        abs_eval = abs(evaluation)
+        if abs_eval < mate_eval:
+            return str(evaluation)
+
+        mate_in: float = check_mate_eval - abs_eval
+        mate_str: str = 'wM' if evaluation > 0 else 'bM'
+
+        return f'{mate_str}{int(mate_in)}'
+
     @staticmethod
     def determine_result(result: str) -> Result:
+        """determine win draw or loss based on string"""
         if result == 'win':
             return Result.WIN
         if (result == 'checkmated' or result == 'resigned' or result == 'timeout' or
@@ -122,7 +193,20 @@ class Game:
         return Result.DRAW
 
     @staticmethod
+    def get_clean_pgn(pgn_dirty):
+        """use regular expressions to remove clock info and result from pgn (some pgns dont have result)"""
+        # remove everything after last bracket (incl bracket in case last char but add back)
+        last_bracket_index = pgn_dirty.rfind('}')
+        pgn_dirty_no_result = pgn_dirty[:last_bracket_index] + '}'
+
+        pgn_no_clocks: list[str] = re.sub(r'\s*\{\[%clk [^\}]+\]\}', '', pgn_dirty_no_result)
+        pgn_clean: str = re.sub(r'\d+\.\.\.\s*', '', pgn_no_clocks).strip()
+
+        return pgn_clean
+
+    @staticmethod
     def pgn_str_to_arr(pgn_st: str):
+        """convert pgn str to an array without numbers"""
         return [move for move in pgn_st.split(' ') if '.' not in move]
 
     @staticmethod
@@ -146,7 +230,7 @@ class Game:
 
     @staticmethod
     def create_engine(depth: int = 10):
-        """create a stockfish engine with certain depth for eval"""
+        """create a stockfish engine with certain depth for eval (default to 10)"""
         engine = chess.engine.SimpleEngine.popen_uci(stockfish_path)
         limit = chess.engine.Limit(depth=depth)
 
@@ -164,46 +248,6 @@ class Game:
         node = chess.pgn.read_game(pgn_stream)
 
         return node
-
-    @staticmethod
-    def evaluate_board(board, color: Color, engine_limit: list = None) -> float:
-        """evaluate board based on user color"""
-        if engine_limit is None:
-            engine_limit = Game.create_engine()
-
-        info = engine_limit[0].analyse(board, engine_limit[1])
-
-        # get score relative to player (if winning +, if losing -)
-        if color == Color.WHITE:
-            score = info["score"].white()
-        else:
-            score = info["score"].black()
-
-        if score.is_mate():
-            if score == MateGiven:  #mated
-                evaluation = check_mate_eval
-            else:  # follow stockfish
-                evaluation = (check_mate_eval - score.moves) / 100.0
-        else:  # centipawn to pawn units
-            evaluation = score.cp / 100.0
-
-        return evaluation
-
-    @staticmethod
-    def get_eval_per_move(pgn_str: str, color: Color, engine_limit: list) -> list[float]:
-        """populate an array with eval at each board position"""
-        eval_per_move: list[float] = []
-        node = Game.pgn_str_to_node(pgn_str)
-        board = node.board()
-
-        # go through each board position of game
-        while node.variations:
-            next_node = node.variation(0)
-            board.push(next_node.move)
-            eval_per_move.append(Game.evaluate_board(board, color, engine_limit))
-            node = next_node
-
-        return eval_per_move
 
     @staticmethod
     def make_datetime_obj(year: int, month: int, day: int = 1,
@@ -239,17 +283,18 @@ class Game:
         return line_number
 
     @staticmethod
-    def time_per_move(dirty_pgn: list[str], game_time: float, time_inc: float, color: Color) -> list[float]:
+    def get_time_per_move(dirty_pgn: list[str], game_time: float, time_inc: float) -> list[float]:
         """turn pgn with clock info into time per move"""
-        # extract clock times using reg exp
-        clock_times: list[str] = re.findall(r'\{\[%clk ([^\]]+)\]\}', dirty_pgn)
+        # extract clock times using regular expressions
+        clock_times: list[str] = re.findall(r'\{\[%clk ([^]]+)]}', dirty_pgn)
 
+        # store time per move for user and opponent
         time_per_move: list[float] = []
-        prev_time: float = game_time + time_inc
-        for clock_time in clock_times[color.value::2]:  # iterate thru only users moves (skip 1)
+        prev_time: list[float] = [game_time + time_inc] * 2
+        for i, clock_time in enumerate(clock_times):
             seconds_time: float = Game.clock_to_seconds(clock_time)
-            time_per_move.append(prev_time - seconds_time)
-            prev_time = seconds_time + time_inc
+            time_per_move.append(prev_time[i%2] - seconds_time)
+            prev_time[i%2] = seconds_time + time_inc
 
         return time_per_move
 
@@ -265,7 +310,7 @@ class Game:
         svg_data = chess.svg.board(board=Game.pgn_str_to_node(pgn_str).board())
 
         svg_file: str = 'board.svg'
-        with open(svg_file, "w") as f:
+        with open(svg_file, 'w') as f:
             f.write(svg_data)
         webbrowser.open('file://' + wd + svg_file)
 

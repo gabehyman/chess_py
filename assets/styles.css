@@ -1,0 +1,101 @@
+/* assets/styles.css */
+
+:root {
+    --cyborg-blue: #00bcd4;
+    --cyborg-orange: #f39c12;
+    --cyborg-green: #00ffae;
+    --cyborg-red: #944;
+}
+
+/* custom scrollbar to match cyborg theme */
+::-webkit-scrollbar {
+    width: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: var(--cyborg-blue);
+    border-radius: 6px;
+    border: 2px solid #111;
+}
+/* ----------------------------------------------------- */
+
+/* glitch effect to have text bounce up and down on page */
+.glitch {
+    position: relative;
+    animation: glitch 1s infinite;
+}
+
+.glitch::before,
+.glitch::after {
+    content: attr(data-text);
+    position: absolute;
+    left: 0;
+    top: 0;
+    opacity: 0.8;
+}
+
+.glitch::before {
+    color: #0ff;
+    animation: glitchTop 1s infinite;
+}
+
+.glitch::after {
+    color: #f0f;
+    animation: glitchBottom 1s infinite;
+}
+
+@keyframes glitch {
+    0% { transform: none; }
+    20% { transform: skew(-0.5deg, -0.9deg); }
+    40% { transform: skew(0.8deg, 0.4deg); }
+    60% { transform: skew(-1deg, 0.2deg); }
+    80% { transform: skew(0.2deg, -0.5deg); }
+    100% { transform: none; }
+}
+
+@keyframes glitchTop {
+    0% { transform: translate(0, 0); }
+    30% { transform: translate(-2px, -2px); }
+    60% { transform: translate(2px, -1px); }
+    100% { transform: translate(0, 0); }
+}
+
+@keyframes glitchBottom {
+    0% { transform: translate(0, 0); }
+    30% { transform: translate(2px, 2px); }
+    60% { transform: translate(-1px, 2px); }
+    100% { transform: translate(0, 0); }
+}
+/* ----------------------------------------------------- */
+
+/* custom design for sliders */
+.custom-slider .rc-slider-track {
+    background-color: var(--cyborg-green);
+}
+
+.custom-slider .rc-slider-handle {
+    background-color: --cyborg-green;
+    border: none;
+    box-shadow: 0 0 0 2px var(--cyborg-green);
+}
+
+.custom-slider .rc-slider-rail {
+    background-color: var(--cyborg-red);
+}
+
+.custom-slider .rc-slider-dot {
+    border: 2px solid var(--cyborg-green);     /* cyborg green outer ring */
+}
+/* ----------------------------------------------------- */
+
+/* custom design for radio buttons */
+.custom-radio input[type="radio"] {
+    accent-color: var(--cyborg-green);
+}
+/* ----------------------------------------------------- */
+
+/* custom design for checklist boxes */
+.custom-checklist input[type="checkbox"] {
+    accent-color: var(--cyborg-green);
+}
+/* ----------------------------------------------------- */

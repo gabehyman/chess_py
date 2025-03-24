@@ -3,36 +3,50 @@
 """
 
 class DashStyle:
-    small_width_int = 15
+    small_width_int = 14
     SMALL_WIDTH = f'{small_width_int}%'
     BIG_WIDTH = f'{100 - (2 * small_width_int)}%'
     SLIDER_WIDTH = 8
 
+    CYBORG_BLUE = '#00bcd4'
+    CYBORG_ORANGE = '#f39c12'
+    CYBORG_ORANGE_TRANS = 'rgba(243, 156, 18, 0.9)'
+    CYBORG_GREEN = '#00ffae'
+    CYBORG_RED = '#944'
+
     @staticmethod
-    def get_landing_title_style():
+    def get_landing_title_style(color=CYBORG_BLUE):
         return {
-            "textAlign": "center",
-            "fontSize": "70px",
-            "color": "#00bcd4"
+            'textAlign': 'center',
+            'fontSize': '70px',
+            'color': color
         }
 
     @staticmethod
     def get_landing_sub_title_style():
         return {
-            "textAlign": "center",
-            "fontSize": "40px",
+            'textAlign': 'center',
+            'fontSize': '40px',
             'fontStyle': 'bold',
-            "marginTop": "6rem",
-            "marginBottom": "1rem",
-            "color": "#00bcd4"  # cyborg blue
+            'marginTop': '3rem',
+            'marginBottom': '0rem',
+            'color': DashStyle.CYBORG_BLUE
+        }
+
+    @staticmethod
+    def get_score_div_style():
+        return {
+            'display': 'flex',
+            'flexDirection': 'column',
+            'alignItems': 'center'
         }
 
     @staticmethod
     def get_user_button_style():
         return {
-            'color': 'white',  # Cyborg orange
+            'color': 'white',
             'textDecoration': 'underline',
-            'backgroundColor': 'rgba(243, 156, 0, 0.9)',
+            'backgroundColor': DashStyle.CYBORG_ORANGE_TRANS,
             'fontStyle': 'italic',
             'borderRadius': '25px',
             'border': 'none',
@@ -45,31 +59,36 @@ class DashStyle:
     @staticmethod
     def get_user_button_div_style():
         return {
+                'maxHeight': '250px',
+                'overflowY': 'auto',  # makes it scrollable
+                'overflowX': 'hidden',  # no scrolling in X
                 'display': 'flex',
                 'flexWrap': 'wrap',
                 'justifyContent': 'center',
                 'gap': '20px',
                 'maxWidth': '60%',
-                'margin': 'auto'
+                'margin': 'auto',
+                'padding': '20px 40px',
+                'borderRadius': '25px'
             }
 
     @staticmethod
     def get_landing_style():
         return {
-            "display": "flex",
-            "flexDirection": "column",
-            "justifyContent": "center",
-            "alignItems": "center",
-            "height": "100vh"
+            'display': 'flex',
+            'flexDirection': 'column',
+            'justifyContent': 'center',
+            'alignItems': 'center',
+            'height': '100vh'
         }
 
     @staticmethod
     def get_user_input_style():
         return {
-            "width": "100%",
-            "height": "60px",
-            "fontSize": "2rem",
-            "textAlign": "center",
+            'width': '100%',
+            'height': '60px',
+            'fontSize': '2rem',
+            'textAlign': 'center',
             'borderRadius': '25px',
             'margin-right': '14px'
         }
@@ -77,11 +96,18 @@ class DashStyle:
     @staticmethod
     def get_enter_button_style():
         return {
-            "fontSize": "1.6rem",
-            "borderRadius": "30px",
-            "backgroundColor": "#f39c12",
-            "color": "white",
-            "border": "none",
+            'fontSize': '1.6rem',
+            'borderRadius': '30px',
+            'backgroundColor': DashStyle.CYBORG_ORANGE,
+            'color': 'white',
+            'border': 'none',
+        }
+
+    @staticmethod
+    def get_collapsable_button_style():
+        return {
+            'color': DashStyle.CYBORG_GREEN,
+            'borderColor': DashStyle.CYBORG_GREEN
         }
 
     @staticmethod
@@ -96,7 +122,7 @@ class DashStyle:
         return DashStyle.get_header_style(style)
 
     @staticmethod
-    def get_div_style(width='15%', height='90px', border_bottom='1px solid gray'):
+    def get_div_style(width='15%', height='auto', border_bottom='1px solid gray'):
         return {
             'width': width,
             'display': 'flex',
@@ -104,6 +130,15 @@ class DashStyle:
             'justifyContent': 'center',
             'height': height,
             'borderBottom': border_bottom
+        }
+
+    @staticmethod
+    def get_column_options_style():
+        return {
+            'display': 'flex',
+            'alignItems': 'center',
+            'gap': '30px',
+            'justifyContent': 'flex-start'
         }
 
     @staticmethod
@@ -127,6 +162,14 @@ class DashStyle:
             'flexDirection': 'row',
             'justifyContent': 'space-between',
             'marginBottom': margin
+        }
+
+    @staticmethod
+    def get_alert_style():
+        return {
+            'width': 'fit-content',
+            'font-size': '20px',
+            'textAlign': 'center'
         }
 
     @staticmethod

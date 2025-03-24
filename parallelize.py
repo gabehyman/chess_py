@@ -1,6 +1,7 @@
 """
 ### handle parallelization of the processing of user games
 """
+
 from concurrent.futures import ProcessPoolExecutor
 import os
 import signal
@@ -49,15 +50,20 @@ class Parallelize:
         """process a single game using  worker's engine"""
         game_data, username = args  # unpack game_data and username args
         pid = os.getpid()
+
+        if len(game_data.pgn_arr) == len(game_data.eval_per_move):
+            return game_data
+
         engine = Parallelize.get_engine()
         if engine is None:
-            raise RuntimeError(f"no engine found for process {pid}.")
+            raise RuntimeError(f'no engine found for process {pid}.')
 
         try:
-            result = Game(game_data, username, engine, False)
-            return result
+            game_data.get_eval_per_move(engine)
+            return game_data
+
         except Exception as e:
-            print(f"error processing game in PID {pid}: {e}.")
+            print(f'error processing game in PID {pid}: {e}.')
             raise
 
     @classmethod
@@ -87,9 +93,9 @@ class Parallelize:
                 for task in cleanup_tasks:
                     task.result()
 
-                return processed_games
-
         finally:
             # ensure any remaining cleanup happens
             for pid in list(cls._pid_to_engine.keys()):
                 cls.cleanup_engine()
+
+            return processed_games
