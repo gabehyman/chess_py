@@ -38,7 +38,8 @@ class DashStyle:
         return {
             'display': 'flex',
             'flexDirection': 'column',
-            'alignItems': 'center'
+            'alignItems': 'center',
+            'justifyContent': 'center'
         }
 
     @staticmethod
@@ -106,8 +107,9 @@ class DashStyle:
     @staticmethod
     def get_collapsable_button_style():
         return {
-            'color': DashStyle.CYBORG_GREEN,
-            'borderColor': DashStyle.CYBORG_GREEN
+            'color': DashStyle.CYBORG_BLUE,
+            'borderColor': DashStyle.CYBORG_BLUE,
+            'width': '100%'
         }
 
     @staticmethod
@@ -149,10 +151,10 @@ class DashStyle:
             'cursor': 'pointer',
             'textAlign': 'center',
             'whiteSpace': 'normal',
-            'display': 'flex',
             'flexDirection': 'column',
             'justifyContent': 'center',
-            'width': '100%'
+            'width': 'auto',
+            "display": "inline",
         }
 
     @staticmethod
@@ -190,5 +192,6 @@ class DashStyle:
         return {
             'margin-right': '10px',
             'margin-left': '10px',
-            'margin-bottom': '30px'
+            'margin-bottom': '30px',
+            'cursor': 'pointer'
         }

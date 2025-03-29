@@ -32,8 +32,8 @@ class Sort:
 
         # db for specific user
         self.user_db_path: str = f'{self.db_path}/{self.username}'
-        self.new_user = not os.path.isdir(self.user_db_path)
-        if self.new_user:
+        self.is_new_user = not os.path.isdir(self.user_db_path)
+        if self.is_new_user:
             os.makedirs(self.user_db_path)
 
         # info to help only pull new games
@@ -65,7 +65,7 @@ class Sort:
         # create a mutex lock for self.games to avoid concurrent read/writes
         self.games_lock = threading.Lock()
         self.time_to_eval: float = 0
-        self.is_eval_done_container = {'is_eval_done': False}
+        self.is_eval_done_container = {'is_eval_done': self.local_games_count == len(self.games_container['games'])}
 
         # evaluate all games in parallel
         threading.Thread(target=self.eval_games_in_parallel, daemon=False).start()
@@ -88,7 +88,7 @@ class Sort:
 
     def read_local_games(self):
         """read games stored locally and save to program data"""
-        if not self.new_user:
+        if not self.is_new_user:
             for root, dirs, filenames in os.walk(self.user_db_path):
                 # skip hidden dirs/files like .git, .DS_Store, etc. and just focus on .json
                 dirs[:] = [d for d in dirs if not d.startswith('.')]
@@ -106,7 +106,7 @@ class Sort:
         ### updates locally stored games to be up-to-date with remote and returns #games in archive
         ### only look at games after the last game written
         """
-        if self.new_user:
+        if self.is_new_user:
             return self.pull_games(archive_url)
 
         # if we are looking at archives from the same month or after the last pull
@@ -125,6 +125,8 @@ class Sort:
 
         all_games = response.json().get('games', [])
         valid_games = [game for game in all_games if Sort.is_valid_game(game)]
+
+        # return if we dont have any new games to add
         if (len(valid_games) - 1) == last_game_in_folder:
             return
 
@@ -163,7 +165,7 @@ class Sort:
 
     def set_last_pull_info(self):
         """set info of when last pull was based on present files"""
-        if not self.new_user:
+        if not self.is_new_user:
             self.last_archive_index = -1
             self.last_game_number = -1
 
@@ -199,9 +201,8 @@ class Sort:
 
     def eval_games_in_parallel(self):
         """wrapper function for parallelization"""
-        # only need to evaluate games if we have newly pulled games
-        if self.local_games_count == len(self.games_container['games']):
-            self.is_eval_done_container['is_eval_done'] = True
+        # only need to evaluate games if we have newly pulled games (all evals already calc)
+        if self.is_eval_done_container['is_eval_done']:
             return
 
         # time how long the parallelized eval takes
@@ -214,10 +215,18 @@ class Sort:
         # save timing
         self.time_to_eval: float = time.time() - start_eval_time
 
-        # update games, re-sort and write to db
+        # use lock to avoid access conflicts with webpage
         with self.games_lock:
-            self.games_container['games'] = games_w_eval
-            self.games_container['games'].sort(key=lambda game: game.start_time)
+            # sort new games so we can just stick in self.games
+            games_w_eval.sort(key=lambda game: game.start_time)
+
+            # just reassign reference if new user (all games were just processed)
+            if self.is_new_user:
+                self.games_container['games'] = games_w_eval
+                self.is_new_user = False
+            else:
+                self.games_container['games'].extend(games_w_eval)
+
             self.write_games()
 
         self.is_eval_done_container['is_eval_done'] = True

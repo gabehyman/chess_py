@@ -18,6 +18,7 @@ def format_scoreboard(score: list[int], color='white'):
 
 def create_results_list(sorted_openings, display, color):
     """populate list of all openings based on sort"""
+    print(f'display = {display}')
     results_list = [
         # header of list
         html.Div([
@@ -119,10 +120,10 @@ def register_callbacks(app):
         Output('opened-opening-store', 'data'),
         [Input({'type': 'opening', 'index': ALL}, 'n_clicks')],
         [State('sorted-openings-store', 'data'),
-         State('display-count-store', 'data')]  # Get the display count from the store
+         State('display-count-store', 'data')]  # get the display count from the store
     )
     def handle_opening_click(n_clicks_list, sorted_openings_data, display_count):
-        """callback to handle the click event using pattern matching"""
+        """callback to handle the click event using pattern matching to open chess.com analysis"""
         ctx = callback_context
         if not ctx.triggered:
             return None
@@ -160,7 +161,9 @@ def register_callbacks(app):
         return new_open_state, button_text
 
     @app.callback(
-        Output('filtered-results', 'children'),
+        [Output('filtered-results', 'children'),
+         Output('total-openings', 'children'),
+         Output('total-games', 'children')],
         [Input('type-filter', 'value'),
          Input('color-filter', 'value'),
          Input('mates-filter', 'value'),
@@ -178,6 +181,7 @@ def register_callbacks(app):
         with app.server.config['games_lock']:
             games = app.server.config['games_container']['games']
 
+        # recalculate opening_stats if eval_done_trigger, else if key values dont change, dont update
         if (is_not_eval_done_trigger and depth == app.server.config['last_depth'] and
                 color == app.server.config['color'] and app.server.config['selected_time_classes'] == time_classes):
             openings_stats = app.server.config['opening_stats']
@@ -189,7 +193,11 @@ def register_callbacks(app):
             app.server.config['selected_time_classes'] = time_classes
 
         sorted_openings = Stats.sort_opening_stats(openings_stats, filter_type, color, mates, result, order)
-        return create_results_list(sorted_openings, display, color)
+
+        total_openings = len(sorted_openings)
+        total_games = Stats.get_total_number_games(sorted_openings)
+
+        return create_results_list(sorted_openings, display, color), f'{total_openings}', f'{total_games}'
 
     @app.callback(
         [Output('result-filter-container', 'style'),
@@ -215,6 +223,41 @@ def register_callbacks(app):
         ]
         return options, is_eval_done
 
+    @app.callback(
+        Output('display-filter', 'min'),
+        Output('display-filter', 'max'),
+        Output('display-filter', 'marks'),
+        Input('total-openings', 'children'),
+    )
+    def get_display_slider_values(total_openings):
+        """function to change dynamically and scale the slider nicely based on #openings"""
+        # basics for how to start the display
+        MAX: int = 100
+        MAX_SLIDER_VAL: int = 300  # anything larger and lower values obfuscated
+        MIN: int = 10
+
+        # total openings possible based on how many games user has played
+        with app.server.config['games_lock']:
+            max_openings: int = len(app.server.config['games_container']['games'])
+
+        total_openings_int = int(total_openings)
+
+        # min = 10 or less
+        min_value: int = MIN if total_openings_int > MIN else total_openings_int
+
+        # have a maximum actual value of 300 (but adjust it so that it scales with more openings)
+        max_val_scaled: int = total_openings_int
+        if max_val_scaled > MAX:
+            max_val_scaled = int(MAX + (MAX_SLIDER_VAL - MAX) * (total_openings_int / max_openings))
+
+        marks = {v: str(v) for v in range(MIN, MAX, 10) if v < max_val_scaled}
+        marks[max_val_scaled] = str(total_openings)
+
+        print(max_val_scaled)
+        print(marks)
+
+        return min_value, max_val_scaled, marks
+
     return app
 
 def layout(app):
@@ -237,14 +280,15 @@ def layout(app):
                 )
             ),
             dbc.CardBody([
-                dbc.Button(
-                    'options ▼',
-                    id='collapse-button',
-                    color='primary',
-                    outline=True,
-                    className='w-100 text-start mb-2',
-                    style=DashStyle.get_collapsable_button_style()
-                ),
+                html.Div([
+                    dbc.Button(
+                        'options ▼',
+                        id='collapse-button',
+                        outline=True,
+                        color='light',
+                        style=DashStyle.get_collapsable_button_style()
+                    )
+                ], style={'textAlign': 'center'}),
                 # all sorting option in collapsable block
                 dbc.Collapse(
                     dbc.CardBody([
@@ -350,6 +394,18 @@ def layout(app):
                                     className='custom-checklist',
                                     inputStyle=DashStyle.get_input_style()
                                 )
+                            ]),
+                            html.Div([
+                                html.H6('tot# unique openings:',
+                                        style=DashStyle.get_header_style({})
+                                ),
+                                html.Div('...', id='total-openings')
+                            ]),
+                            html.Div([
+                                html.H6('tot# games:',
+                                        style=DashStyle.get_header_style({})
+                                        ),
+                                html.Div('...', id='total-games')
                             ])
                         ], style=DashStyle.get_column_options_style()
                         ),

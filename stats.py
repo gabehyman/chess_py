@@ -19,7 +19,7 @@ class Stats:
         self.total_time_player = sum(self.game_time_per_month)
 
         self.opening_stats = Stats.get_opening_stats(self.sorter.games_container['games'])
-        self.opponent_stats = self.get_opponent_stats()
+        self.opp_stats = self.get_opp_stats()
 
     def calc_game_time_per_month(self):
         for game in self.sorter.games_container['games']:
@@ -34,16 +34,16 @@ class Stats:
                           f'{self.sorter.username}\'s game time per month'
                           f' (total time = {Stats.seconds_to_days_str(self.total_time_player)})')
 
-    def get_opponent_stats(self):
-        opponent_stats: dict[str, list[list[int]]] = {}
+    def get_opp_stats(self):
+        opp_stats: dict[str, list[list[int]]] = {}
 
         for game in self.sorter.games_container['games']:
-            if game.opponent not in opponent_stats:
-                opponent_stats[game.opponent] = [[0, 0, 0], [0, 0, 0]]
+            if game.opp not in opp_stats:
+                opp_stats[game.opp] = [[0, 0, 0], [0, 0, 0]]
 
-            opponent_stats[game.opponent][game.color.value][game.result.value] += 1
+            opp_stats[game.opp][game.color.value][game.result.value] += 1
 
-        return opponent_stats
+        return opp_stats
 
     @staticmethod
     def get_opening_stats(games: list[Game], depth: int = 10, color: int = -1,
@@ -78,6 +78,13 @@ class Stats:
                         opening_stats[pgn][game.color.value][game.result.value] += 1
 
         return opening_stats
+
+    @staticmethod
+    def get_total_number_games(stats: dict[str, list[list[int]]]):
+        total_games = 0
+        for key, value in stats.items():
+            for lst in value[0:2]:  # only the first two inner lists (white and black records)
+                total_games += sum(lst)
 
     @staticmethod
     def sort_opening_stats(stats: dict[str, list[list[int]]], filter_type: int, color: int, mates: int, result: int,
