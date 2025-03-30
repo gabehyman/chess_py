@@ -6,9 +6,12 @@ from game import Color
 from game import Result
 
 class Stats:
+     # all time classes
     time_classes: list[str] = ['bullet', 'blitz', 'rapid', 'daily']
 
     def __init__(self, sorter: Sort):
+        """for now we have an init but ultimately just a static class??"""
+        # have reference to sorter object for data
         self.sorter: Sort = sorter
 
         self.game_time_per_month: list[float] = [0] * self.sorter.num_months_active
@@ -48,6 +51,7 @@ class Stats:
     @staticmethod
     def get_opening_stats(games: list[Game], depth: int = 10, color: int = -1,
                           selected_time_classes: list[str] = None) -> dict[str, list[list]]:
+        """sorts through openings at given depth and gets record and eval from a given position"""
         # default to all time classes (handle as mutable default param)
         if selected_time_classes is None:
             selected_time_classes = Stats.time_classes
@@ -75,20 +79,25 @@ class Stats:
                             # make new entry for the opening to track
                             opening_stats[pgn] = [[0, 0, 0], [0, 0, 0], [white_eval]]
 
+                        # increment record of color/result
                         opening_stats[pgn][game.color.value][game.result.value] += 1
 
         return opening_stats
 
     @staticmethod
-    def get_total_number_games(stats: dict[str, list[list[int]]]):
-        total_games = 0
+    def get_num_games(stats: dict[str, list[list[int]]]):
+        """calculate num games played based on record info"""
+        num_games = 0
         for key, value in stats.items():
             for lst in value[0:2]:  # only the first two inner lists (white and black records)
-                total_games += sum(lst)
+                num_games += sum(lst)
+
+        return num_games
 
     @staticmethod
     def sort_opening_stats(stats: dict[str, list[list[int]]], filter_type: int, color: int, mates: int, result: int,
                            high_low: bool) -> dict[str, list[list[int]]]:
+        """sort through openings based on a variety of user input"""
         # store all stats we are interested in sorting
         filtered_stats = stats.items()
 
@@ -135,7 +144,7 @@ class Stats:
 
     @staticmethod
     def plotly_plot(data: list, labels: list[str], axis_titles: list[str], title: str):
-        # create bar chart
+        """create interactive bar chart"""
         fig = go.Figure(data=[
             go.Bar(x=labels, y=data)])
 
@@ -153,10 +162,12 @@ class Stats:
 
     @staticmethod
     def seconds_to_hrs(seconds: float) -> float:
+        """convert seconds to hours"""
         return seconds / (60 * 60)
 
     @staticmethod
     def seconds_to_days_str(seconds: float) -> str:
+        """convert seconds to amount of days (days/hrs/mins/seconds)"""
         days: int = int(seconds // (24 * 3600))
         seconds %= (24 * 3600)
         hours: int = int(seconds // 3600)
@@ -165,4 +176,3 @@ class Stats:
         seconds %= 60
 
         return f'{days}days {hours}hrs, {minutes}mins {int(seconds)}secs'
-
