@@ -114,6 +114,7 @@ class Stats:
                 if color == Color.BLACK.value:
                     high_low = not high_low
 
+
                 sorted_stats = sorted(filtered_stats, key=lambda item: item[1][len(Color)][0], reverse=high_low)
 
             else:  # if color == -1, we sort for both so we are just interested in absolute value
@@ -121,20 +122,36 @@ class Stats:
 
         # sorting by record
         elif color != -1 and result != -1:
-            # sort by value at stats[key][color][result]
-            sorted_stats = sorted(filtered_stats, key=lambda item: item[1][color][result], reverse=high_low)
+            if result == len(Result)+1:  # wins - losses
+                sorted_stats = sorted(filtered_stats, key=lambda item: (item[1][color][0] - item[1][color][0]),
+                                      reverse=high_low)
+            elif result == len(Result)+2:  # losses - wins
+                sorted_stats = sorted(filtered_stats, key=lambda item: (item[1][color][2] - item[1][color][0]),
+                                      reverse=high_low)
+            else:
+                # sort by value at stats[key][color][result]
+                sorted_stats = sorted(filtered_stats, key=lambda item: item[1][color][result], reverse=high_low)
 
         elif color != -1:
             # sort by sum of all results as the specified color (exclude anything after, eg eval)
             sorted_stats = sorted(filtered_stats, key=lambda item: sum(item[1][color][:len(Result)]), reverse=high_low)
 
         elif result != -1:
-            # sort by sum of all games with the specified result across both colors
-            sorted_stats = sorted(filtered_stats, key=lambda item: sum(item[1][x][result] for x in range(len(Color))),
-                                  reverse=high_low)
+            if result == len(Result) + 1:  # wins - losses
+                sorted_stats = sorted(filtered_stats,
+                                      key=lambda item: sum(item[1][x][0] - item[1][x][2] for x in range(len(Color))),
+                                      reverse=high_low)
+            elif result == len(Result) + 2:  # losses - wins
+                sorted_stats = sorted(filtered_stats,
+                                      key=lambda item: sum(item[1][x][2] - item[1][x][0] for x in range(len(Color))),
+                                      reverse=high_low)
+            else:
+                # sort by sum of all games with the specified result across both colors
+                sorted_stats = sorted(filtered_stats, key=lambda item: sum(item[1][x][result] for x in range(len(Color))),
+                                      reverse=high_low)
 
         else:
-            # sort by sum of all entries in the stats
+            # sort by sum of all entries' results in the stats
             sorted_stats = sorted(filtered_stats, key=lambda item: sum(sum(inner_list) for inner_list in item[1][:len(Color)]),
                                   reverse=high_low)
 
