@@ -71,7 +71,7 @@ def create_results_list(sorted_openings, display, color):
             html.Div([
                 html.A(
                     opening,
-                    href=None,
+                    href=None,  # page stays in same place after click
                     id=opening_id,
                     style=DashStyle.get_div_a_style()
                 )
