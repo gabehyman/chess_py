@@ -121,7 +121,8 @@ class Sort:
         """get all the games played in that archive"""
         response = requests.get(archive, headers=hdr)
         if response.status_code != 200:
-            print(f'error fetching games: {response.status_code}')
+            print(f'error fetching games at {archive}')
+            return
 
         all_games = response.json().get('games', [])
         valid_games = [game for game in all_games if Sort.is_valid_game(game)]
@@ -133,9 +134,7 @@ class Sort:
         # create a Game obj for each game
         start_of_new_valid_games: int = last_game_in_folder + 1
         for game_number, game in enumerate(valid_games[start_of_new_valid_games:], start=start_of_new_valid_games):
-            if Sort.is_valid_game(game):
-                if game_number > last_game_in_folder:
-                    self.games_container['games'].append(Game(game, self.username, False))
+            self.games_container['games'].append(Game(game, self.username, False))
 
     def write_games(self):
         """write games to local database"""
@@ -208,6 +207,8 @@ class Sort:
         # time how long the parallelized eval takes
         start_eval_time = time.time()
 
+        new_games: list[Game] = self.games_container['games'][self.local_games_count:]
+
         # start multi-threaded eval of all new games
         processor = Parallelize()
         games_w_eval = processor.process_all_games(self.games_container['games'][self.local_games_count:], self.username)
@@ -224,8 +225,9 @@ class Sort:
             if self.is_new_user:
                 self.games_container['games'] = games_w_eval
                 self.is_new_user = False
+            # otherwise extend
             else:
-                self.games_container['games'].extend(games_w_eval)
+                self.games_container['games'][self.local_games_count:] = games_w_eval
 
             self.write_games()
 

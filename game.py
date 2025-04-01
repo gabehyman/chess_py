@@ -168,7 +168,7 @@ class Game:
     def eval_to_mate_str(evaluation, color: int):
         """turn eval value into str (converting mates to wM/bM#moves)"""
         # if we don't have the evals yet show them as loading
-        if not evaluation:
+        if evaluation is None:
             return 'loading...'
 
         abs_eval = abs(evaluation)
@@ -319,7 +319,7 @@ class Game:
         # get total number of moves (doesn't need to be exact, just always >= real# so we open at end)
         num_moves = pgn.count('.') * 2
         encoded_pgn = urllib.parse.quote(pgn)
-        url = f"https://www.chess.com/analysis?tab=analysis&setup=fen&pgn={encoded_pgn}&move={num_moves}"
+        url = f'https://www.chess.com/analysis?tab=analysis&setup=fen&pgn={encoded_pgn}&move={num_moves}'
         webbrowser.open(url)
 
 
