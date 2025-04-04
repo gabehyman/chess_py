@@ -71,7 +71,7 @@ def create_results_list(sorted_openings, display, color):
             html.Div([
                 html.A(
                     opening,
-                    href='#',
+                    href=None,  # page stays in same place after click
                     id=opening_id,
                     style=DashStyle.get_div_a_style()
                 )
@@ -336,9 +336,11 @@ def layout(app):
                                         ),
                                 dcc.RadioItems(
                                     id='result-filter',
-                                    options=[{'label': ' win', 'value': Result.WIN.value},
-                                            {'label': ' draw', 'value': Result.DRAW.value},
-                                            {'label': ' loss', 'value': Result.LOSS.value},
+                                    options=[{'label': ' wins', 'value': Result.WIN.value},
+                                            {'label': ' draws', 'value': Result.DRAW.value},
+                                            {'label': ' losses', 'value': Result.LOSS.value},
+                                            {'label': ' Ws-Ls', 'value': len(Result) + 1},
+                                            {'label': ' Ls-Ws', 'value': len(Result) + 2},
                                             {'label': ' all', 'value': -1}],
                                    value=-1,
                                    inline=True,

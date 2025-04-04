@@ -105,7 +105,7 @@ def layout():
         dbc.Alert(id='user-alert-box',
             is_open=False,
             dismissable=True,
-            duration=6000,  # auto close after 6 seconds
+            duration=4000,  # auto close after 6 seconds
             style=DashStyle.get_alert_style()
         ),
 

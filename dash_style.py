@@ -147,14 +147,14 @@ class DashStyle:
     def get_div_a_style():
         return {
             'textDecoration': 'underline',
-            'color': 'light blue',
+            'color': DashStyle.CYBORG_GREEN,
             'cursor': 'pointer',
             'textAlign': 'center',
             'whiteSpace': 'normal',
             'flexDirection': 'column',
             'justifyContent': 'center',
             'width': 'auto',
-            "display": "inline",
+            "display": "inline"
         }
 
     @staticmethod
