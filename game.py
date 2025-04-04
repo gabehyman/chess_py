@@ -63,7 +63,7 @@ class Game:
         self.final_elo: int = game[self.color_str]['rating']
 
         # opponent info
-        color_str_opp: str = 'white' if self.color_str == 'black' else 'white'
+        color_str_opp: str = 'white' if self.color_str == 'black' else 'black'
         self.opp: str = game[color_str_opp]['username']
         self.result_str_opp: str = game[color_str_opp]['result']
 
@@ -90,12 +90,12 @@ class Game:
         self.eval_per_move: list[float] = []
 
         # start date info
-        year, month, day = pgn_dirty[Game.find_line_number(game['pgn'], 'UTCDate')].split('\"')[1].split('.')
-        hour, minute, sec = pgn_dirty[Game.find_line_number(game['pgn'], 'UTCTime')].split('\"')[1].split(':')
+        year, month, day = Game.get_time_or_date_components(pgn_dirty, game['pgn'], 'UTCDate', '.')
+        hour, minute, sec = Game.get_time_or_date_components(pgn_dirty, game['pgn'], 'UTCTime', ':')
         self.start_time: datetime = Game.make_datetime_obj(int(year), int(month), int(day), int(hour), int(minute), int(sec))
         # end date info
-        year, month, day = pgn_dirty[Game.find_line_number(game['pgn'], 'EndDate')].split('\"')[1].split('.')
-        hour, minute, sec = pgn_dirty[Game.find_line_number(game['pgn'], 'EndTime')].split('\"')[1].split(':')
+        year, month, day = Game.get_time_or_date_components(pgn_dirty, game['pgn'], 'EndDate', '.')
+        hour, minute, sec = Game.get_time_or_date_components(pgn_dirty, game['pgn'], 'EndTime', ':')
         self.end_time: datetime = Game.make_datetime_obj(int(year), int(month), int(day), int(hour), int(minute), int(sec))
         self.month_index: int = Game.date_to_month_index(self.start_time)
 
@@ -256,6 +256,11 @@ class Game:
         return datetime(year, month, day, hour, minute, second)
 
     @staticmethod
+    def get_time_or_date_components(pgn_dirty: list[str], pgn: str, time_type: str, delimiter: str):
+        """get broken down components (d/m/y or h:m:s) of date and time from json"""
+        return pgn_dirty[Game.find_line_number(pgn, time_type)].split('\"')[1].split(delimiter)
+
+    @staticmethod
     def date_to_month_index(date: datetime) -> int:
         """create a month index relative to when chess.com was launched"""
         return ((date.month - chess_com_launch_date.month)
@@ -316,6 +321,7 @@ class Game:
 
     @staticmethod
     def open_pgn_in_chess_com(pgn: str):
+        """opens pgn on chess.com's analysis page at the last move"""
         # get total number of moves (doesn't need to be exact, just always >= real# so we open at end)
         num_moves = pgn.count('.') * 2
         encoded_pgn = urllib.parse.quote(pgn)

@@ -41,6 +41,10 @@ class Sort:
         self.last_game_number: int = -1
         self.local_games_count: int = -1
 
+        # games played in the early hours of the first day of the month are stored in the previous month's archive
+        # this is used to keep track of those games so that they can be properly added to the next (correct) month
+        self.games_leftover: list = []
+
         # store as container so reassignments are tracked in Dash
         self.games_container: dict[str, list[Game]] = {'games': []}
 
@@ -53,6 +57,11 @@ class Sort:
         # populate games and worry about eval later
         for archive_url in self.archive_urls:
             self.update_games(archive_url)
+
+        # add any leftover games
+        if self.games_leftover:
+            self.add_new_games(self.games_leftover)
+            self.games_leftover = []
 
         # sort games in chrono order
         self.games_container['games'].sort(key=lambda game: game.start_time)
@@ -124,16 +133,29 @@ class Sort:
             print(f'error fetching games at {archive}')
             return
 
+        # valid games = new valid games + leftover games from previous archive (which are actually from this month)
         all_games = response.json().get('games', [])
-        valid_games = [game for game in all_games if Sort.is_valid_game(game)]
+        valid_games = [game for game in all_games if Sort.is_valid_game(game)] + self.games_leftover
 
-        # return if we dont have any new games to add
-        if (len(valid_games) - 1) == last_game_in_folder:
+        # month archives can have games from the first day of the next month so we need to make
+        # sure that we only look at the number of games in the archive from the actual month
+        num_games_in_month = Sort.get_num_games_in_month(valid_games, archive.split('/')[-1])
+
+        # dont need to do anythjng if we have all the games in the folder already
+        if num_games_in_month == last_game_in_folder:
             return
 
-        # create a Game obj for each game
         start_of_new_valid_games: int = last_game_in_folder + 1
-        for game_number, game in enumerate(valid_games[start_of_new_valid_games:], start=start_of_new_valid_games):
+        valid_games_month = valid_games[start_of_new_valid_games:num_games_in_month]
+
+        # add new games to prgram data
+        self.add_new_games(valid_games_month)
+
+        # keep track of leftover games for next month
+        self.games_leftover = valid_games[num_games_in_month:]
+
+    def add_new_games(self, games):
+        for game in games:
             self.games_container['games'].append(Game(game, self.username, False))
 
     def write_games(self):
@@ -284,6 +306,19 @@ class Sort:
     def is_valid_game(game: list):
         """only process normal chess games with a pgn and normal starting pos"""
         return 'pgn' in game and game['rules'] == 'chess' and game['initial_setup'] == ''
+
+    @staticmethod
+    def get_num_games_in_month(games_in_archive: list, archive_month: int):
+        """get how many games in the current archive are from that month"""
+        for i in reversed(range(len(games_in_archive))):
+            pgn = games_in_archive[i]['pgn']
+
+            # element 1 is the month
+            month = Game.get_time_or_date_components(pgn.splitlines(), pgn, 'UTCDate', '.')[1]
+            if int(month) != int(archive_month):
+                return i
+
+        return len(games_in_archive)
 
     @staticmethod
     def preloaded_usernames() -> list[str]:
