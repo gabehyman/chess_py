@@ -85,14 +85,20 @@ class Stats:
         return opening_stats
 
     @staticmethod
-    def get_num_games(stats: dict[str, list[list[int]]]):
-        """calculate num games played based on record info"""
+    def get_total_record(stats: dict[str, list[list[int]]]):
+        """calculate total record across all games"""
+        wins = 0
+        draws = 0
+        losses = 0
         num_games = 0
         for key, value in stats.items():
             for lst in value[0:2]:  # only the first two inner lists (white and black records)
+                wins += lst[0]
+                draws += lst[1]
+                losses += lst[2]
                 num_games += sum(lst)
 
-        return num_games
+        return wins, draws, losses, num_games
 
     @staticmethod
     def sort_opening_stats(stats: dict[str, list[list[int]]], filter_type: int, color: int, mates: int, result: int,

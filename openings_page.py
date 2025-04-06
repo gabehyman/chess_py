@@ -2,7 +2,7 @@
 ### page that handles all things related to openings
 """
 
-from dash import Dash, dcc, html, Input, Output, State, callback_context, ALL
+from dash import dcc, html, Input, Output, State, callback_context, ALL
 import dash_bootstrap_components as dbc
 import json
 
@@ -14,7 +14,11 @@ from game import Result
 from game import Color
 
 def format_scoreboard(score: list[int], color='white'):
-    return f'{color}: {score[0]}-{score[1]}-{score[2]}'
+    """how to display record of user"""
+    color_str = ''
+    if color:
+        color_str = f'{color}: '
+    return f'{color_str}{score[0]:,}-{score[1]:,}-{score[2]:,}'
 
 def create_results_list(sorted_openings, display, color):
     """populate list of all openings based on sort"""
@@ -139,6 +143,10 @@ def get_display_slider_values(num_openings, total_num_games, cur_val):
     elif cur_val not in marks:
         cur_val = min(marks.keys(), key=lambda k: abs(k - cur_val))
 
+    # if min == max (ie, one val on slider), make min one less so value is at the far right of slider
+    if max_val_scaled == min_value:
+        min_value -= 1
+
     return min_value, max_val_scaled, marks, cur_val
 
 def register_callbacks(app):
@@ -177,8 +185,7 @@ def register_callbacks(app):
         Output('sort-collapse', 'is_open'),
         Output('collapse-button', 'children'),
         Input('collapse-button', 'n_clicks'),
-        State('sort-collapse', 'is_open'),
-        prevent_initial_call=True
+        State('sort-collapse', 'is_open')
     )
     def toggle_collapse(n_clicks, is_open):
         """handle the collapsing and opening of sorting options"""
@@ -190,6 +197,7 @@ def register_callbacks(app):
         [Output('filtered-results', 'children'),
          Output('total-openings', 'children'),
          Output('total-games', 'children'),
+         Output('total-record', 'children'),
          Output('display-filter', 'min'),
          Output('display-filter', 'max'),
          Output('display-filter', 'marks'),
@@ -228,14 +236,14 @@ def register_callbacks(app):
         sorted_openings = Stats.sort_opening_stats(openings_stats, filter_type, color, mates, result, order)
 
         num_openings = len(sorted_openings)
-        num_games = Stats.get_num_games(sorted_openings)
+        wins, draws, losses, num_games = Stats.get_total_record(sorted_openings)
         total_num_games = len(games)
 
         min_value, max_val_scaled, marks, display = get_display_slider_values(num_openings, total_num_games, display)
         display_actual: int = int(marks[display])  # actual value we want to display (only needed for max)
 
         return (create_results_list(sorted_openings, display_actual, color), f'{num_openings:,}', f'{num_games:,}',
-                min_value, max_val_scaled, marks, display)
+                f'{format_scoreboard([wins, draws, losses], '')}', min_value, max_val_scaled, marks, display)
 
 
     @app.callback(
@@ -402,16 +410,22 @@ def layout(app):
                                 )
                             ]),
                             html.Div([
-                                html.H6('tot# unique openings:',
+                                html.H6('openings:',
                                         style=DashStyle.get_header_style({})
                                 ),
                                 html.Div('...', id='total-openings')
                             ]),
                             html.Div([
-                                html.H6('tot# games:',
+                                html.H6('games:',
                                         style=DashStyle.get_header_style({})
                                         ),
                                 html.Div('...', id='total-games')
+                            ]),
+                            html.Div([
+                                html.H6('record:',
+                                        style=DashStyle.get_header_style({})
+                                        ),
+                                html.Div('...', id='total-record')
                             ])
                         ], style=DashStyle.get_column_options_style()
                         ),

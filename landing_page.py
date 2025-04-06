@@ -44,7 +44,7 @@ def register_callbacks(app):
             valid_user: int = Sort.is_user_valid(username)
             if valid_user == 0:  # 0 = valid user with games played
                 # loading cube will show
-                sorter: Sort = Sort(username)
+                sorter: Sort = Sort(username.lower())
 
                 # populate app.server.config with program data you need
                 app.server.config['username'] = sorter.username
