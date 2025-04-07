@@ -13,7 +13,7 @@ def register_callbacks(app):
         [Output('user-alert-box', 'children'),
          Output('user-alert-box', 'is_open'),
          Output('user-alert-box', 'color'),
-         Output('url', 'pathname'),
+         Output('redirect-container', 'children'),
          Output('hidden-output', 'children')],
         [Input({'type': 'username-btn', 'index': ALL}, 'n_clicks'),
          Input('submit-button', 'n_clicks'),
@@ -56,8 +56,8 @@ def register_callbacks(app):
                 app.server.config['color'] = None
                 app.server.config['selected_time_classes'] = None
 
-                # no update to alert box and go to openings page
-                return no_update, False, no_update, '/openings', ''
+                # no update to alert box and go to user page
+                return no_update, False, no_update, dcc.Location(id='redirect-user', href="/user"), ''
 
             else:
                 if valid_user == 1: # 1 = user doesn't exist
@@ -69,8 +69,6 @@ def register_callbacks(app):
         # nothing happened so no update
         return no_update, False, no_update, no_update, no_update
 
-    return app
-
 def layout():
     """main layout of page"""
     # get users already loaded and stored in db for quick access
@@ -81,6 +79,7 @@ def layout():
             'enter a chess.com username',
                 style=DashStyle.get_landing_title_style()
         ),
+
         html.Div([
             dcc.Input(
                 id='username-input',
@@ -142,6 +141,8 @@ def layout():
             type='cube',
             color=DashStyle.CYBORG_GREEN,
             children=html.Div(id='hidden-output')
-        )
+        ),
+
+        html.Div(id='redirect-container')
     ], style=DashStyle.get_landing_style()
     )

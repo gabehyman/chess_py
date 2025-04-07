@@ -1,6 +1,8 @@
-"""
+'''
 ### class that handles things related to dash style
-"""
+'''
+from dash_bootstrap_components.themes import CYBORG
+
 
 class DashStyle:
     small_width_int = 14
@@ -154,7 +156,7 @@ class DashStyle:
             'flexDirection': 'column',
             'justifyContent': 'center',
             'width': 'auto',
-            "display": "inline"
+            'display': 'inline'
         }
 
     @staticmethod
@@ -172,6 +174,41 @@ class DashStyle:
             'width': 'fit-content',
             'font-size': '20px',
             'textAlign': 'center'
+        }
+
+    @staticmethod
+    def get_navbar_style(hide: bool):
+        display = 'none' if hide else 'block'
+        return {
+            'color': 'white',
+            'border-radius': '5px',
+            'borderColor': DashStyle.CYBORG_GREEN,
+            'margin-top': '20px',
+            'margin-left': '20px',
+            'display': display,
+            'font-size': '30px'
+        }
+
+    @staticmethod
+    def get_navbar_full_style():
+        return {
+            'position': 'absolute',
+            'top': '10px',
+            'left': '10px',
+            'zIndex': '999'  # always on top
+        }
+
+    @staticmethod
+    def get_nav_bar_ind_style():
+        return {
+            'font-size': '20px',
+            'border': '1px solid #666'
+        }
+
+    @staticmethod
+    def get_navbar_div_style():
+        return {
+            'marginTop': '80px'
         }
 
     @staticmethod
