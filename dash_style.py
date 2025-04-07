@@ -177,16 +177,25 @@ class DashStyle:
         }
 
     @staticmethod
+    def get_hide_or_block(hide):
+        return 'none' if hide else 'block'
+
+    @staticmethod
     def get_navbar_style(hide: bool):
-        display = 'none' if hide else 'block'
         return {
             'color': 'white',
             'border-radius': '5px',
             'borderColor': DashStyle.CYBORG_GREEN,
             'margin-top': '20px',
             'margin-left': '20px',
-            'display': display,
+            'display': DashStyle.get_hide_or_block(hide),
             'font-size': '30px'
+        }
+
+    @staticmethod
+    def get_username_header_style(hide: bool):
+        return {
+            'display': DashStyle.get_hide_or_block(hide)
         }
 
     @staticmethod
@@ -206,9 +215,10 @@ class DashStyle:
         }
 
     @staticmethod
-    def get_navbar_div_style():
+    def get_navbar_div_style(hide: bool):
         return {
-            'marginTop': '80px'
+            'marginTop': '80px',
+            'display': DashStyle.get_hide_or_block(hide),
         }
 
     @staticmethod

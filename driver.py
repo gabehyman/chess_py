@@ -24,6 +24,10 @@ def main():
             refresh=False
         ),
         html.Div(id='navbar-container'),  # control nav bar here
+        html.H1(
+            id='username-header',
+            className='text-center mb-3 text-primary'
+        ),
         html.Div(id='page-content')
     ])
 
@@ -32,14 +36,19 @@ def main():
     navigation_bar.register_navbar_callbacks(app)
     openings_page.register_callbacks(app)
 
+    # need to initialize for header display
+    app.server.config['username'] = None
+
     @app.callback(
         [Output('page-content', 'children'),
          Output('navbar-container', 'children'),
-         Output('navbar-container', 'style')],
+         Output('navbar-container', 'style'),
+         Output('username-header', 'children'),
+         Output('username-header', 'style')],
         Input('url', 'pathname')
     )
     def render_page(pathname):
-        """handle URL routing here"""
+        """handle page routing and navbar/username header display"""
         layout = not_found_page.layout()
         if pathname == '/landing':
             layout = landing_page.layout()
@@ -48,16 +57,13 @@ def main():
         elif pathname == '/openings':
             layout = openings_page.layout(app)
 
-        # hide or show navigation bar (and space nicely)
-        style = {}
-        hide = True
-        if pathname in ['/user', '/openings']:
-            style = DashStyle.get_navbar_div_style()
-            hide = False
+        # pages for which we want to show navigation bar and username header
+        hide = pathname not in ['/user', '/openings']
 
-        return layout, navigation_bar.get_navbar(hide), style
+        return (layout, navigation_bar.get_navbar(hide), DashStyle.get_navbar_div_style(hide),
+                app.server.config['username'], DashStyle.get_username_header_style(hide))
 
-    # open and run
+    # open and run on landing page
     webbrowser.open('http://localhost:8050/landing')
     app.run_server(debug=False, use_reloader=True)
 

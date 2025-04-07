@@ -59,7 +59,7 @@ def register_navbar_callbacks(app):
         State('navbar-collapse', 'is_open'),
     )
     def toggle_navbar(navbar_click, is_navbar_open):
-        # if clicked on, change open state
+        """if clicked on, change open state"""
         if navbar_click:
             return not is_navbar_open
         return is_navbar_open

@@ -1,6 +1,6 @@
-'''
+"""
 ### page that handles all things related to openings
-'''
+"""
 
 from dash import dcc, html, Input, Output, State, callback_context, ALL
 import dash_bootstrap_components as dbc
@@ -14,14 +14,14 @@ from game import Result
 from game import Color
 
 def format_scoreboard(score: list[int], color='white'):
-    '''how to display record of user'''
+    """how to display record of user"""
     color_str = ''
     if color:
         color_str = f'{color}: '
     return f'{color_str}{score[0]:,}-{score[1]:,}-{score[2]:,}'
 
 def create_results_list(sorted_openings, display, color):
-    '''populate list of all openings based on sort'''
+    """populate list of all openings based on sort"""
     results_list = [
         # header of list
         html.Div([
@@ -119,7 +119,7 @@ def create_results_list(sorted_openings, display, color):
     )
 
 def get_display_slider_values(num_openings, total_num_games, cur_val):
-    '''function to dynamically scale slider marks and change current value if need be'''
+    """function to dynamically scale slider marks and change current value if need be"""
     # basics for how to start the display
     MAX: int = 100
     MAX_SLIDER_VAL: int = 300  # anything larger and lower values obfuscated
@@ -157,7 +157,7 @@ def register_callbacks(app):
          State('display-count-store', 'data')]  # get the display count from the store
     )
     def handle_opening_click(n_clicks_list, sorted_openings_data, display_count):
-        '''callback to handle the click event using pattern matching to open chess.com analysis'''
+        """callback to handle the click event using pattern matching to open chess.com analysis"""
         ctx = callback_context
         if not ctx.triggered:
             return None
@@ -189,7 +189,7 @@ def register_callbacks(app):
         prevent_initial_call=True
     )
     def toggle_collapse(n_clicks, is_open):
-        '''handle the collapsing and opening of sorting options'''
+        """handle the collapsing and opening of sorting options"""
         new_open_state = not is_open
         button_text = 'options ▼' if new_open_state else 'options ▶'
         return new_open_state, button_text
@@ -214,7 +214,7 @@ def register_callbacks(app):
          Input('eval-status-checker', 'n_intervals')]
     )
     def update_results(filter_type, color, mates, result, order, time_classes, depth, display, checker_n):
-        '''handle the re-sorting and displaying of openings results based on user input'''
+        """handle the re-sorting and displaying of openings results based on user input"""
         # force update the results if we just finished eval processing
         is_not_eval_done_trigger = not callback_context.triggered[0]['prop_id'].startswith('eval-status-checker')
 
@@ -253,7 +253,7 @@ def register_callbacks(app):
         Input('type-filter', 'value')
     )
     def toggle_sort_by_containers(selected_sort):
-        '''hide/display result/color info based on what were sorting by'''
+        """hide/display result/color info based on what were sorting by"""
         if selected_sort == 1:
             return {'display': 'block'}, {'display': 'none'}  # show result, hide mate
         return {'display': 'none'}, {'display': 'block'}  # show mate, hide result
@@ -272,16 +272,12 @@ def register_callbacks(app):
         return options, is_eval_done
 
 def layout(app):
-    '''main layout of page'''
+    """main layout of page"""
     return dbc.Container([
         # store stats object
         dcc.Store(
             id='stats-store',
             storage_type='session'
-        ),
-        html.H1(
-            app.server.config['username'],
-            className='text-center mb-3 text-primary'
         ),
         dbc.Card([
             dbc.CardHeader(
