@@ -16,7 +16,7 @@ def get_navbar(hide: bool):
             n_clicks=0,
             style=DashStyle.get_navbar_style(hide)
         ),
-        # collapsable options with all pages
+        # collapsable options with all available pages
         dbc.Collapse(
             dbc.Nav(
                 [
