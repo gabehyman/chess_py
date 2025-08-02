@@ -1,3 +1,4 @@
+from dash_style import DashStyle
 from game import Game, mate_eval
 from sort import Sort
 import plotly.graph_objects as go
@@ -5,48 +6,23 @@ import plotly.graph_objects as go
 from game import Color
 from game import Result
 
+
 class Stats:
-     # all time classes
+    # all time classes
     time_classes: list[str] = ['bullet', 'blitz', 'rapid', 'daily']
 
-    def __init__(self, sorter: Sort):
-        """for now we have an init but ultimately just a static class??"""
-        # have reference to sorter object for data
-        self.sorter: Sort = sorter
+    @staticmethod
+    def calc_game_time_per_month(games, num_months_active, first_month_index) -> list[float]:
+        """calculate total time played each month"""
+        game_time_per_month: list[float] = [0] * num_months_active
 
-        self.game_time_per_month: list[float] = [0] * self.sorter.num_months_active
-        self.num_games_per_month: list[int] = [0] * self.sorter.num_months_active
-        self.month_indices_str: list[str] = [Game.month_index_to_str_months(self.sorter.first_month_index + i)
-                                             for i in range(self.sorter.num_months_active)]
-        self.calc_game_time_per_month()
-        self.total_time_player = sum(self.game_time_per_month)
+        for game in games:
+            game_time_per_month[game.month_index - first_month_index] += 1  # num games
+            game_time_per_month[game.month_index - first_month_index] += game.duration  # total secs
 
-        self.opening_stats = Stats.get_opening_stats(self.sorter.games_container['games'])
-        self.opp_stats = self.get_opp_stats()
+        game_time_per_month = [time for time in game_time_per_month]
 
-    def calc_game_time_per_month(self):
-        for game in self.sorter.games_container['games']:
-            self.game_time_per_month[game.month_index - self.sorter.first_month_index] += 1  # num games
-            self.game_time_per_month[game.month_index - self.sorter.first_month_index] += game.duration # total secs
-
-        self.game_time_per_month = [time for time in self.game_time_per_month]
-
-    def plotly_plot_game_time_per_month(self):
-        Stats.plotly_plot([Stats.seconds_to_hrs(time) for time in self.game_time_per_month], self.month_indices_str,
-                          ['month', 'time played (hrs)'],
-                          f'{self.sorter.username}\'s game time per month'
-                          f' (total time = {Stats.seconds_to_days_str(self.total_time_player)})')
-
-    def get_opp_stats(self):
-        opp_stats: dict[str, list[list[int]]] = {}
-
-        for game in self.sorter.games_container['games']:
-            if game.opp not in opp_stats:
-                opp_stats[game.opp] = [[0, 0, 0], [0, 0, 0]]
-
-            opp_stats[game.opp][game.color.value][game.result.value] += 1
-
-        return opp_stats
+        return game_time_per_month
 
     @staticmethod
     def get_opening_stats(games: list[Game], depth: int = 10, color: int = -1,
@@ -73,8 +49,8 @@ class Stats:
                             white_eval = None
                             if game.eval_per_move:
                                 # all evals saved as white position to be consistent
-                                white_eval = (game.eval_per_move[depth-1] if game.color == Color.WHITE
-                                    else game.eval_per_move[depth-1] * -1)
+                                white_eval = (game.eval_per_move[depth - 1] if game.color == Color.WHITE
+                                              else game.eval_per_move[depth - 1] * -1)
 
                             # make new entry for the opening to track
                             opening_stats[pgn] = [[0, 0, 0], [0, 0, 0], [white_eval]]
@@ -120,7 +96,6 @@ class Stats:
                 if color == Color.BLACK.value:
                     high_low = not high_low
 
-
                 sorted_stats = sorted(filtered_stats, key=lambda item: item[1][len(Color)][0], reverse=high_low)
 
             else:  # if color == -1, we sort for both so we are just interested in absolute value
@@ -128,10 +103,10 @@ class Stats:
 
         # sorting by record
         elif color != -1 and result != -1:
-            if result == len(Result)+1:  # wins - losses
+            if result == len(Result) + 1:  # wins - losses
                 sorted_stats = sorted(filtered_stats, key=lambda item: (item[1][color][0] - item[1][color][0]),
                                       reverse=high_low)
-            elif result == len(Result)+2:  # losses - wins
+            elif result == len(Result) + 2:  # losses - wins
                 sorted_stats = sorted(filtered_stats, key=lambda item: (item[1][color][2] - item[1][color][0]),
                                       reverse=high_low)
             else:
@@ -153,35 +128,51 @@ class Stats:
                                       reverse=high_low)
             else:
                 # sort by sum of all games with the specified result across both colors
-                sorted_stats = sorted(filtered_stats, key=lambda item: sum(item[1][x][result] for x in range(len(Color))),
+                sorted_stats = sorted(filtered_stats,
+                                      key=lambda item: sum(item[1][x][result] for x in range(len(Color))),
                                       reverse=high_low)
 
         else:
             # sort by sum of all entries' results in the stats
-            sorted_stats = sorted(filtered_stats, key=lambda item: sum(sum(inner_list) for inner_list in item[1][:len(Color)]),
+            sorted_stats = sorted(filtered_stats,
+                                  key=lambda item: sum(sum(inner_list) for inner_list in item[1][:len(Color)]),
                                   reverse=high_low)
 
         return dict(sorted_stats)
 
-
-
     @staticmethod
-    def plotly_plot(data: list, labels: list[str], axis_titles: list[str], title: str):
+    def create_plotly_fig(data: list, labels: list[str], axis_titles: list[str], bar_color=DashStyle.CYBORG_ORANGE,
+                          hover_color=DashStyle.CYBORG_BLUE):
         """create interactive bar chart"""
         fig = go.Figure(data=[
-            go.Bar(x=labels, y=data)])
+            go.Bar(
+                x=labels,
+                y=data,
+                marker=dict(color=bar_color)
+            )])
 
         # update layout to make the x-axis scrollable
         fig.update_layout(
+            plot_bgcolor=DashStyle.CYBORG_BLACK,
+            paper_bgcolor=DashStyle.CYBORG_BLACK,
+            font=dict(color='white'),
             xaxis=dict(
                 rangeslider=dict(visible=True),
-                type='category'),
-                title=title,
-                xaxis_title=axis_titles[0],
-                yaxis_title=axis_titles[1])
+                type='category',
+                color='white'
+            ),
+            yaxis=dict(color='white'),
+            xaxis_title=axis_titles[0],
+            yaxis_title=axis_titles[1],
+            margin=dict(l=20, r=20, t=10, b=20),  # remove spacing above plot for header title
+            hoverlabel=dict(
+                bgcolor=DashStyle.CYBORG_BLUE,  # background color of hover box
+                font=dict(color='white')  # text color inside hover box
+            )
+        )
 
-        # display the plot
-        fig.show()
+        # return figure
+        return fig
 
     @staticmethod
     def seconds_to_hrs(seconds: float) -> float:
@@ -199,3 +190,16 @@ class Stats:
         seconds %= 60
 
         return f'{days}days {hours}hrs, {minutes}mins {int(seconds)}secs'
+
+    @staticmethod
+    def get_opp_stats(games):
+        """get dict of opponents with record"""
+        opp_stats: dict[str, list[list[int]]] = {}
+
+        for game in games:
+            if game.opp not in opp_stats:
+                opp_stats[game.opp] = [[0, 0, 0], [0, 0, 0]]
+
+            opp_stats[game.opp][game.color.value][game.result.value] += 1
+
+        return opp_stats

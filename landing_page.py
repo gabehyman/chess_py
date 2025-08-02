@@ -47,7 +47,7 @@ def register_callbacks(app):
                 sorter: Sort = Sort(username.lower())
 
                 # populate app.server.config with program data you need
-                app.server.config['username'] = sorter.username
+                app.server.config['sorter'] = sorter
                 app.server.config['games_container'] = sorter.games_container
                 app.server.config['games_lock'] = sorter.games_lock
                 app.server.config['is_eval_done_container'] = sorter.is_eval_done_container

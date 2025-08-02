@@ -13,6 +13,7 @@ from parallelize import Parallelize
 
 # needed for chess.com api call
 hdr = {'User-Agent': 'gabejohnsmith@gmail.com'}
+valid_initial_fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 
 
 class Sort:
@@ -305,7 +306,7 @@ class Sort:
     @staticmethod
     def is_valid_game(game: list):
         """only process normal chess games with a pgn and normal starting pos"""
-        return 'pgn' in game and game['rules'] == 'chess' and game['initial_setup'] == ''
+        return 'pgn' in game and game['rules'] == 'chess' and game['initial_setup'] == valid_initial_fen
 
     @staticmethod
     def get_num_games_in_month(games_in_archive: list, archive_month: int):

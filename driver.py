@@ -26,7 +26,7 @@ def main():
         html.Div(id='navbar-container'),  # control nav bar here
         html.H1(
             id='username-header',
-            className='text-center mb-3 text-primary'
+            className='text-center mb-3'
         ),
         html.Div(id='page-content')
     ])
@@ -37,7 +37,7 @@ def main():
     openings_page.register_callbacks(app)
 
     # need to initialize for header display
-    app.server.config['username'] = None
+    app.server.config['sorter'] = None
 
     @app.callback(
         [Output('page-content', 'children'),
@@ -60,8 +60,12 @@ def main():
         # pages for which we want to show navigation bar and username header
         hide = pathname not in ['/user', '/openings']
 
+        username = None
+        if app.server.config['sorter'] is not None:
+            username = app.server.config['sorter'].username
+
         return (layout, navigation_bar.get_navbar(hide), DashStyle.get_navbar_div_style(hide),
-                app.server.config['username'], DashStyle.get_username_header_style(hide))
+                username, DashStyle.get_username_header_style(hide))
 
     # open and run on landing page
     webbrowser.open('http://localhost:8050/landing')

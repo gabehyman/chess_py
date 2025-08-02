@@ -1,8 +1,6 @@
 '''
 ### class that handles things related to dash style
 '''
-from dash_bootstrap_components.themes import CYBORG
-
 
 class DashStyle:
     small_width_int = 14
@@ -15,6 +13,7 @@ class DashStyle:
     CYBORG_ORANGE_TRANS = 'rgba(243, 156, 18, 0.9)'
     CYBORG_GREEN = '#00ffae'
     CYBORG_RED = '#944'
+    CYBORG_BLACK = '#060606'
 
     @staticmethod
     def get_landing_title_style(color=CYBORG_BLUE):
@@ -195,6 +194,7 @@ class DashStyle:
     @staticmethod
     def get_username_header_style(hide: bool):
         return {
+            'color': DashStyle.CYBORG_BLUE,
             'display': DashStyle.get_hide_or_block(hide)
         }
 
