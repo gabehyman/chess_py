@@ -336,12 +336,29 @@ class Game:
         webbrowser.open('file://' + wd + svg_file)
 
     @staticmethod
+    def get_length_of_pgn(pgn: str) -> int:
+        # count number of spaces
+        # 3 spaces per complete 2 moves (e.g., 1.%20e4%20e5%20)
+        # 2 spaces per 1 move (e.g., 1.%20e4%20)
+        num_spaces: int = pgn.count(' ')
+
+        num_moves: int = int(num_spaces / 3) * 2
+        if num_spaces % 3 != 0:
+            num_moves += 1
+
+        print(pgn)
+        print(num_spaces)
+
+        return num_moves
+
+    @staticmethod
     def open_pgn_in_chess_com(pgn: str):
         """opens pgn on chess.com's analysis page at the last move"""
         # get total number of moves (doesn't need to be exact, just always >= real# so we open at end)
-        num_moves = pgn.count('.') * 2
+        num_moves = Game.get_length_of_pgn(pgn)
         encoded_pgn = urllib.parse.quote(pgn)
         url = f'https://www.chess.com/analysis?tab=analysis&setup=fen&pgn={encoded_pgn}&move={num_moves}'
+        print(url)
         webbrowser.open(url)
 
 
