@@ -24,9 +24,15 @@ def main():
             refresh=False
         ),
         html.Div(id='navbar-container'),  # control nav bar here
-        html.H1(
-            id='username-header',
-            className='text-center mb-3'
+        html.A(
+            html.H1(
+                id='username-header',
+                className='text-center mb-3'
+            ),
+            id='username-link',
+            href="#",  # placeholder, will be updated dynamically with users profile
+            target="_blank",
+            style={"textDecoration": "none"}
         ),
         html.Div(id='page-content')
     ])
@@ -44,7 +50,8 @@ def main():
          Output('navbar-container', 'children'),
          Output('navbar-container', 'style'),
          Output('username-header', 'children'),
-         Output('username-header', 'style')],
+         Output('username-header', 'style'),
+         Output('username-link', 'href')],  # <-- new output for link
         Input('url', 'pathname')
     )
     def render_page(pathname):
@@ -52,20 +59,21 @@ def main():
         layout = not_found_page.layout()
         if pathname == '/landing':
             layout = landing_page.layout()
-        if pathname == '/user':
+        elif pathname == '/user':
             layout = user_page.layout(app)
         elif pathname == '/openings':
             layout = openings_page.layout(app)
 
-        # pages for which we want to show navigation bar and username header
         hide = pathname not in ['/user', '/openings']
 
         username = None
+        username_link = "#"
         if app.server.config['sorter'] is not None:
             username = app.server.config['sorter'].username
+            username_link = f"https://www.chess.com/member/{username}"
 
-        return (layout, navigation_bar.get_navbar(hide), DashStyle.get_navbar_div_style(hide),
-                username, DashStyle.get_username_header_style(hide))
+        return (layout, navigation_bar.get_navbar(hide), DashStyle.get_navbar_div_style(hide), username,
+                DashStyle.get_username_header_style(hide), username_link)
 
     # open and run on landing page
     webbrowser.open('http://localhost:8050/landing')
