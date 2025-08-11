@@ -72,7 +72,7 @@ class Game:
         self.game_time: float = 0.0 if self.time_class == 'daily' else float(time_control_info[0])
         time_inc: float = 0.0 if (len(time_control_info) == 1) else float(time_control_info[1])
 
-        # get pgn
+        # get pgn (last line after all description related stuff)
         pgn_dirty: list[str] = game['pgn'].splitlines()
 
         # ignore time per move for daily games (inflates numbers/trivial)
@@ -129,16 +129,22 @@ class Game:
         ### populate an array with eval at each board position
         ### (called in parallelize when evals are calculated via asycnh multi-threading)
         """
-        # set up board
-        node = Game.pgn_str_to_node(self.pgn_str)
-        board = node.board()
+        # if we have a pgn (i.e., we have moves)
+        if self.pgn_str:
+            # set up board
+            node = Game.pgn_str_to_node(self.pgn_str)
+            board = node.board()
 
-        # go through each board position of game and eval
-        while node.variations:
-            next_node = node.variation(0)
-            board.push(next_node.move)
-            self.eval_per_move.append(Game.evaluate_board(board, self.color, engine_limit))
-            node = next_node
+            # go through each board position of game and eval
+            while node.variations:
+                next_node = node.variation(0)
+                board.push(next_node.move)
+                self.eval_per_move.append(Game.evaluate_board(board, self.color, engine_limit))
+                node = next_node
+
+        # len(eval) should always = len(pgn)
+        assert len(self.eval_per_move) == len(self.pgn_arr), (
+                f'len(eval) != len(pgn): {self.game_url}')
 
     @staticmethod
     def evaluate_board(board, color: Color, engine_limit: list = None) -> float:
@@ -195,9 +201,18 @@ class Game:
     @staticmethod
     def get_clean_pgn(pgn_dirty):
         """use regular expressions to remove clock info and result from pgn (some pgns dont have result)"""
+        # get where the last space is (if == -1, empty pgn. if not, may be used to remove result)
+        last_space_index = pgn_dirty.rfind(' ')
+        if last_space_index == -1:  # no spaces, i.e., one word
+            return ''
+
         # remove everything after last bracket (incl bracket in case last char but add back)
         last_bracket_index = pgn_dirty.rfind('}')
-        pgn_dirty_no_result = pgn_dirty[:last_bracket_index] + '}'
+        if last_bracket_index != -1:
+            pgn_dirty_no_result = pgn_dirty[:last_bracket_index] + '}'
+        # older games dont use brackets (e.g., https://api.chess.com/pub/player/calvinp/games/2010/04) so remove last word
+        else:
+            pgn_dirty_no_result = pgn_dirty[:last_space_index]
 
         pgn_no_clocks: list[str] = re.sub(r'\s*\{\[%clk [^\}]+\]\}', '', pgn_dirty_no_result)
         pgn_clean: str = re.sub(r'\d+\.\.\.\s*', '', pgn_no_clocks).strip()
@@ -206,8 +221,9 @@ class Game:
 
     @staticmethod
     def pgn_str_to_arr(pgn_st: str):
-        """convert pgn str to an array without numbers"""
-        return [move for move in pgn_st.split(' ') if '.' not in move]
+        """convert pgn str to an array"""
+        # if we have an empty pgn, dont include
+        return [move for move in pgn_st.split(' ') if '.' not in move and move]
 
     @staticmethod
     def pgn_arr_to_str(pgn_arr: list[str], num_moves: int = -1) -> str:
@@ -320,12 +336,26 @@ class Game:
         webbrowser.open('file://' + wd + svg_file)
 
     @staticmethod
+    def get_length_of_pgn(pgn: str) -> int:
+        # count number of spaces
+        # 3 spaces per complete 2 moves (e.g., 1.%20e4%20e5%20)
+        # 2 spaces per 1 move (e.g., 1.%20e4%20)
+        num_spaces: int = pgn.count(' ')
+
+        num_moves: int = int(num_spaces / 3) * 2
+        if num_spaces % 3 != 0:
+            num_moves += 1
+
+        return num_moves
+
+    @staticmethod
     def open_pgn_in_chess_com(pgn: str):
         """opens pgn on chess.com's analysis page at the last move"""
         # get total number of moves (doesn't need to be exact, just always >= real# so we open at end)
-        num_moves = pgn.count('.') * 2
+        num_moves = Game.get_length_of_pgn(pgn)
         encoded_pgn = urllib.parse.quote(pgn)
         url = f'https://www.chess.com/analysis?tab=analysis&setup=fen&pgn={encoded_pgn}&move={num_moves}'
+
         webbrowser.open(url)
 
 

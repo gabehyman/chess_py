@@ -14,6 +14,8 @@ from parallelize import Parallelize
 # needed for chess.com api call
 hdr = {'User-Agent': 'gabejohnsmith@gmail.com'}
 
+# valid fen (have come across non-valid fens and messes up evals)
+valid_initial_fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 
 class Sort:
     def __init__(self, username: str):
@@ -48,6 +50,9 @@ class Sort:
         # store as container so reassignments are tracked in Dash
         self.games_container: dict[str, list[Game]] = {'games': []}
 
+        # save extra typing
+        games = self.games_container['games']
+
         # read thru local files and determine when the last pull was (get archive url)
         self.set_last_pull_info()
 
@@ -64,17 +69,20 @@ class Sort:
             self.games_leftover = []
 
         # sort games in chrono order
-        self.games_container['games'].sort(key=lambda game: game.start_time)
-        self.first_month_index = self.games_container['games'][0].month_index
-        self.last_month_index = self.games_container['games'][-1].month_index
+        games.sort(key=lambda game: game.start_time)
+        self.first_month_index = games[0].month_index
+        self.last_month_index = games[-1].month_index
         self.num_months_active = self.last_month_index - self.first_month_index + 1
+
+        self.cur_tilt: str = self.calc_cur_tilt()
+        print(self.cur_tilt)
 
         self.time_to_sort: float = time.time() - start_sort_time
 
         # create a mutex lock for self.games to avoid concurrent read/writes
         self.games_lock = threading.Lock()
         self.time_to_eval: float = 0
-        self.is_eval_done_container = {'is_eval_done': self.local_games_count == len(self.games_container['games'])}
+        self.is_eval_done_container = {'is_eval_done': self.local_games_count == len(games)}
 
         # evaluate all games in parallel
         threading.Thread(target=self.eval_games_in_parallel, daemon=False).start()
@@ -222,6 +230,9 @@ class Sort:
 
     def eval_games_in_parallel(self):
         """wrapper function for parallelization"""
+        # save extra typing
+        games = self.games_container['games']
+
         # only need to evaluate games if we have newly pulled games (all evals already calc)
         if self.is_eval_done_container['is_eval_done']:
             return
@@ -229,11 +240,11 @@ class Sort:
         # time how long the parallelized eval takes
         start_eval_time = time.time()
 
-        new_games: list[Game] = self.games_container['games'][self.local_games_count:]
+        new_games: list[Game] = games[self.local_games_count:]
 
         # start multi-threaded eval of all new games
         processor = Parallelize()
-        games_w_eval = processor.process_all_games(self.games_container['games'][self.local_games_count:], self.username)
+        games_w_eval = processor.process_all_games(games[self.local_games_count:], self.username)
 
         # save timing
         self.time_to_eval: float = time.time() - start_eval_time
@@ -245,17 +256,77 @@ class Sort:
 
             # just reassign reference if new user (all games were just processed)
             if self.is_new_user:
-                self.games_container['games'] = games_w_eval
+                games = games_w_eval
                 self.is_new_user = False
             # otherwise extend
             else:
-                self.games_container['games'][self.local_games_count:] = games_w_eval
+                games[self.local_games_count:] = games_w_eval
 
             self.write_games()
 
         self.is_eval_done_container['is_eval_done'] = True
 
         print('evals updated and games written to mem')
+
+    def calc_cur_tilt(self) -> str:
+        """calc user tilt based on following algo
+           score out of 10, with 10 being horrible tilt
+           (max(1hr, game time in last hr)/1hr) * 5 - (Ws/(Ws+Ls)) * 5
+           +
+           (max(4hrs, game time in last day)/4hrs) * 3 - (Ws/(Ws+Ls)) * 3
+           +
+           (max(28hrs, game time in last week)/28hrs) * 2 - (Ws/(Ws+Ls)) * 2"""
+        secs_in_hr: float = 3600.0
+        max_playable_hrs_in_day: int = 4  # 4hrs was chosen as more than that per day is mucho
+
+        tilt_time_contr_full: list[int] = [1, 24, 168]  # hr, day, week
+        tilt_time_contr_part: list[int] = [1, max_playable_hrs_in_day, max_playable_hrs_in_day * 7]  # max 4hrs per day
+        tilt_contr_weight: list[int] = [5, 3, 2]
+
+        cur_tilt: float = 0.0
+        for i in range(len(tilt_time_contr_full)):
+            part_time = tilt_time_contr_part[i] * secs_in_hr
+
+            games_last_x = self.get_games_in_last_x_secs(tilt_time_contr_full[i] * secs_in_hr)
+            time_last_x = Sort.calc_time_played(games_last_x)
+            record_last_x = Sort.get_record(games_last_x)
+
+            ws_plus_ls: int = record_last_x[0] + record_last_x[2]
+            if ws_plus_ls > 0:
+                cur_tilt += (max(part_time, time_last_x)/part_time * tilt_contr_weight[i] -
+                                      record_last_x[0]/ws_plus_ls * tilt_contr_weight[i])
+
+        return round(cur_tilt, 2)
+
+    def get_games_in_last_x_secs(self, secs: float) -> list[Game]:
+        """get all games played within the last x hrs"""
+        cur_time = time.time()
+        x_hrs_ago = cur_time - secs
+
+        games_in_last_x_hrs = []
+        for game in reversed(self.games_container['games']):
+            if game.end_time.timestamp() > x_hrs_ago:
+                games_in_last_x_hrs.append(game)
+            else:
+                break  # stop as soon as we reach an older object
+
+        return list(reversed(games_in_last_x_hrs))  # reverse back to maintain chronological order
+
+    @staticmethod
+    def calc_time_played(games) -> float:
+        time_played: float = 0.0
+        for game in games:
+            time_played += game.duration
+
+        return time_played
+
+    @staticmethod
+    def get_record(games) -> list[int]:
+        record: list[int] = [0, 0, 0]  # W - D - L
+        for game in games:
+            record[game.result.value] += 1
+
+        return record
 
     @staticmethod
     def get_user_archive_url(username):
@@ -305,7 +376,7 @@ class Sort:
     @staticmethod
     def is_valid_game(game: list):
         """only process normal chess games with a pgn and normal starting pos"""
-        return 'pgn' in game and game['rules'] == 'chess' and game['initial_setup'] == ''
+        return 'pgn' in game and game['rules'] == 'chess' and game['initial_setup'] == valid_initial_fen
 
     @staticmethod
     def get_num_games_in_month(games_in_archive: list, archive_month: int):

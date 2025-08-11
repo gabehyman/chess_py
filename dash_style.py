@@ -1,6 +1,6 @@
-"""
+'''
 ### class that handles things related to dash style
-"""
+'''
 
 class DashStyle:
     small_width_int = 14
@@ -13,6 +13,7 @@ class DashStyle:
     CYBORG_ORANGE_TRANS = 'rgba(243, 156, 18, 0.9)'
     CYBORG_GREEN = '#00ffae'
     CYBORG_RED = '#944'
+    CYBORG_BLACK = '#060606'
 
     @staticmethod
     def get_landing_title_style(color=CYBORG_BLUE):
@@ -154,7 +155,7 @@ class DashStyle:
             'flexDirection': 'column',
             'justifyContent': 'center',
             'width': 'auto',
-            "display": "inline"
+            'display': 'inline'
         }
 
     @staticmethod
@@ -172,6 +173,52 @@ class DashStyle:
             'width': 'fit-content',
             'font-size': '20px',
             'textAlign': 'center'
+        }
+
+    @staticmethod
+    def get_hide_or_block(hide):
+        return 'none' if hide else 'block'
+
+    @staticmethod
+    def get_navbar_style(hide: bool):
+        return {
+            'color': 'white',
+            'border-radius': '5px',
+            'borderColor': DashStyle.CYBORG_GREEN,
+            'margin-top': '20px',
+            'margin-left': '20px',
+            'display': DashStyle.get_hide_or_block(hide),
+            'font-size': '30px'
+        }
+
+    @staticmethod
+    def get_username_header_style(hide: bool):
+        return {
+            'color': DashStyle.CYBORG_BLUE,
+            'display': DashStyle.get_hide_or_block(hide)
+        }
+
+    @staticmethod
+    def get_navbar_full_style():
+        return {
+            'position': 'absolute',
+            'top': '10px',
+            'left': '10px',
+            'zIndex': '999'  # always on top
+        }
+
+    @staticmethod
+    def get_nav_bar_ind_style():
+        return {
+            'font-size': '20px',
+            'border': '1px solid #666'
+        }
+
+    @staticmethod
+    def get_navbar_div_style(hide: bool):
+        return {
+            'marginTop': '80px',
+            'display': DashStyle.get_hide_or_block(hide),
         }
 
     @staticmethod
