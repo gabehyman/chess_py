@@ -346,9 +346,6 @@ class Game:
         if num_spaces % 3 != 0:
             num_moves += 1
 
-        print(pgn)
-        print(num_spaces)
-
         return num_moves
 
     @staticmethod
@@ -358,7 +355,7 @@ class Game:
         num_moves = Game.get_length_of_pgn(pgn)
         encoded_pgn = urllib.parse.quote(pgn)
         url = f'https://www.chess.com/analysis?tab=analysis&setup=fen&pgn={encoded_pgn}&move={num_moves}'
-        print(url)
+
         webbrowser.open(url)
 
 

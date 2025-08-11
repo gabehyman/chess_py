@@ -22,14 +22,21 @@ def layout(app):
 
     return dbc.Container([
         # title as header so it scales properly
+        html.H2(
+            'current tilt = ' + str(app.server.config['sorter'].cur_tilt),
+            className='text-center',
+            style={
+                'color': DashStyle.CYBORG_GREEN
+            }
+        ),
         html.H1(
             f'game time per month (total time = {Stats.seconds_to_days_str(sum(game_time_per_month))})',
-            className="text-center mb-3",
+            className='text-center mb-3',
             style={
-                "color": 'white',
-                "fontSize": "24px",
-                "whiteSpace": "normal",
-                "wordWrap": "break-word",
+                'color': 'white',
+                'fontSize': '24px',
+                'whiteSpace': 'normal',
+                'wordWrap': 'break-word',
             }
         ),
         dcc.Graph(
